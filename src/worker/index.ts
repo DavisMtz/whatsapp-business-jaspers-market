@@ -2,13 +2,20 @@
 //
 //   GET/POST /webhook          Meta (público; POST firmado con APP_SECRET)
 //   POST     /api/auth/login   Inicio de sesión
+//   GET      /api/ws           WebSocket de avisos en tiempo real
 //   *        /api/*            Requiere sesión
 
 import { Hono } from "hono";
 import { accountRoutes, authRoutes, requireSession, sameOrigin } from "./auth";
-import type { AppEnv, Env } from "./env";
+import { contactRoutes, tagRoutes } from "./contacts";
+import type { AppEnv } from "./env";
+import { graphSend } from "./graph";
+import { mediaRoutes } from "./media";
+import { connect, notify } from "./realtime";
 import { saveMessage, WINDOW_MS } from "./store";
 import { receiveWebhook, verifyWebhook } from "./webhook";
+
+export { RealtimeHub } from "./realtime";
 
 const app = new Hono<AppEnv>();
 
@@ -20,6 +27,16 @@ api.use("*", sameOrigin);
 api.route("/auth", authRoutes);
 api.use("*", requireSession);
 api.route("/account", accountRoutes);
+api.route("/contacts", contactRoutes);
+api.route("/tags", tagRoutes);
+api.route("/media", mediaRoutes);
+
+// El navegador no manda Origin falso en un WebSocket: se exige el del propio sitio.
+api.get("/ws", async c => {
+  if (c.req.header("Upgrade") !== "websocket") return c.json({ error: "Se esperaba un WebSocket" }, 426);
+  if (c.req.header("Origin") !== new URL(c.req.url).origin) return c.json({ error: "Origen no permitido" }, 403);
+  return connect(c.env, c.req.raw);
+});
 
 // ── Conversaciones ───────────────────────────────────────────
 
@@ -27,23 +44,30 @@ api.get("/conversations", async c => {
   const status = c.req.query("status") === "archived" ? "archived" : "open";
   const q = (c.req.query("q") ?? "").trim();
   const like = `%${q}%`;
+  const tag = Number(c.req.query("tag")) || 0;
   const { results } = await c.env.DB.prepare(
     `SELECT cv.id, cv.wa_id, cv.status, cv.unread_count, cv.last_message_at, cv.last_preview,
-            cv.last_direction, cv.last_inbound_at, ct.profile_name, ct.custom_name
+            cv.last_direction, cv.last_inbound_at, ct.profile_name, ct.custom_name,
+            (SELECT json_group_array(json_object('id', t.id, 'name', t.name, 'color', t.color))
+             FROM contact_tags x JOIN tags t ON t.id = x.tag_id WHERE x.wa_id = cv.wa_id) AS tags
      FROM conversations cv JOIN contacts ct ON ct.wa_id = cv.wa_id
-     WHERE cv.status = ?1 AND (?2 = '' OR cv.wa_id LIKE ?3 OR ct.profile_name LIKE ?3 OR ct.custom_name LIKE ?3)
+     WHERE cv.status = ?1
+       AND (?2 = '' OR cv.wa_id LIKE ?3 OR ct.profile_name LIKE ?3 OR ct.custom_name LIKE ?3 OR ct.notes LIKE ?3)
+       AND (?4 = 0 OR EXISTS (SELECT 1 FROM contact_tags x WHERE x.wa_id = cv.wa_id AND x.tag_id = ?4))
      ORDER BY cv.last_message_at DESC LIMIT 200`
   )
-    .bind(status, q, like)
-    .all();
-  return c.json({ conversations: results, windowMs: WINDOW_MS });
+    .bind(status, q, like, tag)
+    .all<Record<string, unknown> & { tags: string }>();
+  const conversations = results.map(r => ({ ...r, tags: JSON.parse(r.tags || "[]") }));
+  return c.json({ conversations, windowMs: WINDOW_MS });
 });
 
 api.get("/conversations/:id/messages", async c => {
   const id = Number(c.req.param("id"));
   const before = Number(c.req.query("before")) || Number.MAX_SAFE_INTEGER;
   const { results } = await c.env.DB.prepare(
-    `SELECT id, wamid, direction, type, body, status, error, created_at
+    `SELECT id, wamid, direction, type, body, status, error, created_at, caption,
+            media_mime, media_size, media_name, (media_key IS NOT NULL OR media_id IS NOT NULL) AS has_media
      FROM messages WHERE conversation_id = ? AND created_at < ?
      ORDER BY created_at DESC, id DESC LIMIT 100`
   )
@@ -53,9 +77,9 @@ api.get("/conversations/:id/messages", async c => {
 });
 
 api.post("/conversations/:id/read", async c => {
-  await c.env.DB.prepare("UPDATE conversations SET unread_count = 0 WHERE id = ?")
-    .bind(Number(c.req.param("id")))
-    .run();
+  const id = Number(c.req.param("id"));
+  await c.env.DB.prepare("UPDATE conversations SET unread_count = 0 WHERE id = ?").bind(id).run();
+  c.executionCtx.waitUntil(notify(c.env, { type: "conversation", conversationId: id }));
   return c.json({ ok: true });
 });
 
@@ -64,18 +88,9 @@ api.patch("/conversations/:id", async c => {
   if (body.status !== "open" && body.status !== "archived") {
     return c.json({ error: "Estado no válido" }, 400);
   }
-  await c.env.DB.prepare("UPDATE conversations SET status = ? WHERE id = ?")
-    .bind(body.status, Number(c.req.param("id")))
-    .run();
-  return c.json({ ok: true });
-});
-
-api.patch("/contacts/:waId", async c => {
-  const body = await c.req.json().catch(() => ({}));
-  const name = typeof body.custom_name === "string" ? body.custom_name.trim().slice(0, 80) : null;
-  await c.env.DB.prepare("UPDATE contacts SET custom_name = ?, updated_at = ? WHERE wa_id = ?")
-    .bind(name || null, Date.now(), c.req.param("waId"))
-    .run();
+  const id = Number(c.req.param("id"));
+  await c.env.DB.prepare("UPDATE conversations SET status = ? WHERE id = ?").bind(body.status, id).run();
+  c.executionCtx.waitUntil(notify(c.env, { type: "conversation", conversationId: id }));
   return c.json({ ok: true });
 });
 
@@ -109,10 +124,10 @@ api.post("/messages", async c => {
     return c.json({ error: "Escribe un mensaje o elige una plantilla" }, 400);
   }
 
-  const result = await graphSend(c.env, { messaging_product: "whatsapp", to, ...payload });
+  const result = await graphSend(c.env, { to, ...payload });
   if ("error" in result) return c.json({ error: result.error }, 502);
 
-  const conversationId = await saveMessage(c.env.DB, {
+  const saved = await saveMessage(c.env.DB, {
     waId: result.waId ?? to,
     wamid: result.wamid,
     direction: "out",
@@ -122,31 +137,9 @@ api.post("/messages", async c => {
     status: "accepted",
     createdAt: Date.now()
   });
-  return c.json({ ok: true, conversationId });
+  if (saved) c.executionCtx.waitUntil(notify(c.env, { type: "message", conversationId: saved.conversationId }));
+  return c.json({ ok: true, conversationId: saved?.conversationId ?? null });
 });
-
-async function graphSend(
-  env: Env,
-  payload: Record<string, unknown>
-): Promise<{ wamid: string; waId: string | null } | { error: string }> {
-  if (!env.ACCESS_TOKEN || !env.PHONE_NUMBER_ID) {
-    return { error: "Faltan ACCESS_TOKEN o PHONE_NUMBER_ID en el Worker" };
-  }
-  const res = await fetch(
-    `https://graph.facebook.com/${env.GRAPH_API_VERSION}/${env.PHONE_NUMBER_ID}/messages`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${env.ACCESS_TOKEN}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    }
-  );
-  const data: any = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const e = data.error ?? {};
-    return { error: e.error_data?.details || e.message || `Error de Meta (${res.status})` };
-  }
-  return { wamid: data.messages?.[0]?.id ?? null, waId: data.contacts?.[0]?.wa_id ?? null };
-}
 
 // ── Estado de la conexión ────────────────────────────────────
 

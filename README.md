@@ -5,6 +5,9 @@ Bandeja de WhatsApp Business para **Logidma**, corriendo en **Cloudflare Workers
 - **Login** con correo y contraseña (solo el correo autorizado en `ADMIN_EMAIL`), sesiones de 30 días y bloqueo tras intentos fallidos.
 - **Chats**: bandeja con no leídos, búsqueda, archivados, nombres personalizados, estados de envío (enviado, entregado, leído) e indicador de la ventana de 24 horas.
 - **Envío** de textos y de plantillas aprobadas, también para iniciar chats nuevos.
+- **Multimedia**: recibe y envía imágenes, video, audio (incluye notas de voz grabadas desde el navegador) y documentos. Los archivos se guardan en R2 y solo se sirven con sesión.
+- **Tiempo real**: los mensajes y estados llegan al instante por WebSocket (Durable Object `RealtimeHub`); si la conexión se cae, la bandeja vuelve al polling.
+- **Notas y etiquetas** por contacto, con filtro por etiqueta y búsqueda en las notas.
 - **Webhook** en `/webhook` que valida la firma de Meta y guarda mensajes y estados en D1.
 - Páginas públicas: `/privacidad`, `/terminos`, `/eliminacion-datos`.
 
@@ -15,6 +18,8 @@ Bandeja de WhatsApp Business para **Logidma**, corriendo en **Cloudflare Workers
 | Frontend (React + Vite) | `web/` → compilado a `dist/` y servido como assets |
 | API y webhook (Hono) | `src/worker/` |
 | Base de datos (D1) | `migrations/` |
+| Archivos (R2) | bucket `agente-logidma-media`, binding `MEDIA` |
+| Tiempo real (Durable Object) | `RealtimeHub` en `src/worker/realtime.ts`, binding `HUB` |
 
 ## Datos de Meta
 
@@ -40,6 +45,12 @@ Secretos (se cargan en Cloudflare, **nunca** en el repositorio):
 | `DASHBOARD_PASSWORD` | Contraseña inicial: solo se usa para crear el usuario en el primer inicio de sesión. Después se cambia desde Configuración → Cuenta y seguridad |
 
 ## Despliegue
+
+Una sola vez, antes del primer despliegue con multimedia:
+
+```bash
+npx wrangler r2 bucket create agente-logidma-media
+```
 
 ```bash
 npm install

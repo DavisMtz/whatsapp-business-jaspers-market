@@ -24,6 +24,17 @@ export type Conversation = {
   last_inbound_at: number | null;
   profile_name: string | null;
   custom_name: string | null;
+  tags: Tag[];
+};
+
+export type Tag = { id: number; name: string; color: string };
+
+export type Contact = {
+  wa_id: string;
+  profile_name: string | null;
+  custom_name: string | null;
+  notes: string | null;
+  created_at: number;
 };
 
 export type Message = {
@@ -35,4 +46,19 @@ export type Message = {
   status: string;
   error: string | null;
   created_at: number;
+  caption: string | null;
+  media_mime: string | null;
+  media_size: number | null;
+  media_name: string | null;
+  has_media: number;
 };
+
+// Envía un formulario multipart (archivos).
+export async function upload<T = any>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`/api${path}`, { method: "POST", credentials: "same-origin", body: form });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) throw new AuthError(data.error);
+  if (res.status === 413) throw new Error("El archivo es demasiado grande");
+  if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+  return data as T;
+}

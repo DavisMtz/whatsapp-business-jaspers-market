@@ -14,10 +14,14 @@ export type NewMessage = {
   payload: unknown;
   status: string;
   createdAt: number;
+  caption?: string | null;
+  media?: { id: string | null; key?: string | null; mime: string; size?: number | null; name?: string | null } | null;
 };
 
+export type Saved = { conversationId: number; messageId: number };
+
 // Guarda un mensaje y actualiza su contacto y conversación. Ignora duplicados (mismo wamid).
-export async function saveMessage(db: D1Database, m: NewMessage): Promise<number | null> {
+export async function saveMessage(db: D1Database, m: NewMessage): Promise<Saved | null> {
   const now = Date.now();
   const preview = m.body.slice(0, 120);
   const inbound = m.direction === "in";
@@ -53,10 +57,12 @@ export async function saveMessage(db: D1Database, m: NewMessage): Promise<number
   ]);
 
   const conversationId = conv.results[0].id;
-  await db
+  const row = await db
     .prepare(
-      `INSERT INTO messages (conversation_id, wamid, direction, type, body, payload, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO messages (conversation_id, wamid, direction, type, body, payload, status, created_at,
+                             caption, media_id, media_key, media_mime, media_size, media_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       RETURNING id`
     )
     .bind(
       conversationId,
@@ -66,29 +72,43 @@ export async function saveMessage(db: D1Database, m: NewMessage): Promise<number
       m.body,
       JSON.stringify(m.payload ?? null),
       m.status,
-      m.createdAt
+      m.createdAt,
+      m.caption ?? null,
+      m.media?.id ?? null,
+      m.media?.key ?? null,
+      m.media?.mime ?? null,
+      m.media?.size ?? null,
+      m.media?.name ?? null
     )
-    .run();
-  return conversationId;
+    .first<{ id: number }>();
+  return { conversationId, messageId: row!.id };
 }
 
 // Actualiza el estado de un mensaje saliente sin retroceder (p. ej. "read" no vuelve a "delivered").
-export async function updateStatus(db: D1Database, wamid: string, status: string, error: string | null) {
+// Devuelve la conversación si hubo cambio.
+export async function updateStatus(
+  db: D1Database,
+  wamid: string,
+  status: string,
+  error: string | null
+): Promise<number | null> {
   if (status === "failed") {
-    await db
-      .prepare("UPDATE messages SET status = 'failed', error = ? WHERE wamid = ?")
+    const row = await db
+      .prepare("UPDATE messages SET status = 'failed', error = ? WHERE wamid = ? RETURNING conversation_id")
       .bind(error, wamid)
-      .run();
-    return;
+      .first<{ conversation_id: number }>();
+    return row?.conversation_id ?? null;
   }
   const rank = STATUS_RANK[status];
-  if (rank === undefined) return;
-  await db
+  if (rank === undefined) return null;
+  const row = await db
     .prepare(
       `UPDATE messages SET status = ?1 WHERE wamid = ?2 AND status != 'failed' AND
          (CASE status WHEN 'accepted' THEN 0 WHEN 'sent' THEN 1 WHEN 'delivered' THEN 2
-                      WHEN 'read' THEN 3 ELSE -1 END) < ?3`
+                      WHEN 'read' THEN 3 ELSE -1 END) < ?3
+       RETURNING conversation_id`
     )
     .bind(status, wamid, rank)
-    .run();
+    .first<{ conversation_id: number }>();
+  return row?.conversation_id ?? null;
 }

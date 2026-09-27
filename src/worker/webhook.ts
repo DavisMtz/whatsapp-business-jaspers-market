@@ -1,7 +1,11 @@
 import type { Context } from "hono";
 import { hmacSha256Hex, safeEqual } from "./crypto";
 import type { AppEnv } from "./env";
+import { storeInbound } from "./media";
+import { notify } from "./realtime";
 import { saveMessage, updateStatus } from "./store";
+
+const MEDIA_TYPES = ["image", "video", "audio", "document", "sticker"];
 
 // Texto legible de cualquier tipo de mensaje entrante.
 export function describeMessage(msg: any): string {
@@ -68,7 +72,10 @@ export async function receiveWebhook(c: Context<AppEnv>) {
   }
   if (body.object !== "whatsapp_business_account") return c.text("OK");
 
-  const db = c.env.DB;
+  const env = c.env;
+  const db = env.DB;
+  const changed = new Set<number>();
+  const downloads: Promise<unknown>[] = [];
   for (const entry of body.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value ?? {};
@@ -80,7 +87,8 @@ export async function receiveWebhook(c: Context<AppEnv>) {
         (value.contacts ?? []).map((ct: any) => [ct.wa_id, ct.profile?.name])
       );
       for (const msg of value.messages ?? []) {
-        await saveMessage(db, {
+        const media = MEDIA_TYPES.includes(msg.type) ? msg[msg.type] : null;
+        const saved = await saveMessage(db, {
           waId: msg.from,
           profileName: names.get(msg.from) ?? null,
           wamid: msg.id ?? null,
@@ -89,16 +97,37 @@ export async function receiveWebhook(c: Context<AppEnv>) {
           body: describeMessage(msg),
           payload: msg,
           status: "received",
-          createdAt: parseInt(msg.timestamp, 10) * 1000 || Date.now()
+          createdAt: parseInt(msg.timestamp, 10) * 1000 || Date.now(),
+          caption: media?.caption ?? null,
+          media: media?.id
+            ? { id: String(media.id), mime: media.mime_type ?? "application/octet-stream", name: media.filename ?? null }
+            : null
         });
+        if (!saved) continue;
+        changed.add(saved.conversationId);
+        // La descarga va en segundo plano para responder rápido a Meta; al terminar se avisa al panel.
+        if (media?.id) {
+          downloads.push(
+            storeInbound(env, saved.messageId, String(media.id))
+              .catch(e => console.error("Error al guardar multimedia", e))
+              .then(() => notify(env, { type: "message", conversationId: saved.conversationId }))
+          );
+        }
       }
       for (const st of value.statuses ?? []) {
         const error = st.errors?.[0]
           ? `${st.errors[0].title ?? ""} ${st.errors[0].error_data?.details ?? ""}`.trim()
           : null;
-        await updateStatus(db, st.id, st.status, error);
+        const conversationId = await updateStatus(db, st.id, st.status, error);
+        if (conversationId) changed.add(conversationId);
       }
     }
   }
+  c.executionCtx.waitUntil(
+    Promise.all([
+      ...[...changed].map(id => notify(env, { type: "message", conversationId: id })),
+      ...downloads
+    ])
+  );
   return c.text("OK");
 }
