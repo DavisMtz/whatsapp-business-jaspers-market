@@ -7,6 +7,7 @@
 //   POST /api/send           Enviar texto                     (protegido)
 //   POST /api/send-template  Enviar plantilla aprobada        (protegido)
 //   GET  /api/config         Estado de la configuración       (protegido)
+//   GET  /privacidad, /terminos, /eliminacion-datos  Páginas legales (públicas)
 //   *                        Panel estático en /public        (protegido)
 //
 // Variables (wrangler.jsonc / panel de Cloudflare):
@@ -17,6 +18,7 @@
 import { DurableObject } from "cloudflare:workers";
 
 const MAX_MESSAGES = 200;
+const PUBLIC_PAGES = new Set(["/privacidad", "/terminos", "/eliminacion-datos"]);
 
 export default {
   async fetch(request, env) {
@@ -26,6 +28,11 @@ export default {
       if (request.method === "GET") return verifyWebhook(url, env);
       if (request.method === "POST") return receiveWebhook(request, env);
       return new Response("Method Not Allowed", { status: 405 });
+    }
+
+    // Páginas legales que Meta exige para publicar la app: sin contraseña.
+    if (PUBLIC_PAGES.has(url.pathname.replace(/\.html$/, ""))) {
+      return env.ASSETS.fetch(request);
     }
 
     const denied = checkDashboardAuth(request, env);
