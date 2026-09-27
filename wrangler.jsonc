@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "agente-logidma",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-09-01",
+  "observability": { "enabled": true },
+
+  // El panel estático vive en /public; el Worker corre primero para
+  // proteger el panel con contraseña y atender /webhook y /api/*.
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+
+  "durable_objects": {
+    "bindings": [{ "name": "MESSAGES", "class_name": "MessageStore" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MessageStore"] }],
+
+  // Valores no secretos. Los secretos (ACCESS_TOKEN, APP_SECRET,
+  // VERIFY_TOKEN, DASHBOARD_PASSWORD) se cargan con `wrangler secret put`
+  // o en el panel de Cloudflare, nunca aquí.
+  "vars": {
+    "PHONE_NUMBER_ID": "1253350567872957",
+    "GRAPH_API_VERSION": "v23.0"
+  }
+}
