@@ -1,0 +1,104 @@
+import type { Context } from "hono";
+import { hmacSha256Hex, safeEqual } from "./crypto";
+import type { AppEnv } from "./env";
+import { saveMessage, updateStatus } from "./store";
+
+// Texto legible de cualquier tipo de mensaje entrante.
+export function describeMessage(msg: any): string {
+  switch (msg.type) {
+    case "text":
+      return msg.text?.body ?? "";
+    case "image":
+      return msg.image?.caption ? `📷 ${msg.image.caption}` : "📷 Imagen";
+    case "video":
+      return msg.video?.caption ? `🎥 ${msg.video.caption}` : "🎥 Video";
+    case "audio":
+      return msg.audio?.voice ? "🎤 Nota de voz" : "🎵 Audio";
+    case "document":
+      return `📄 ${msg.document?.filename ?? "Documento"}`;
+    case "sticker":
+      return "Sticker";
+    case "location":
+      return `📍 ${msg.location?.name ?? "Ubicación"} (${msg.location?.latitude}, ${msg.location?.longitude})`;
+    case "contacts":
+      return `👤 ${msg.contacts?.[0]?.name?.formatted_name ?? "Contacto"}`;
+    case "button":
+      return msg.button?.text ?? "[botón]";
+    case "interactive":
+      return (
+        msg.interactive?.button_reply?.title ??
+        msg.interactive?.list_reply?.title ??
+        "[respuesta interactiva]"
+      );
+    case "reaction":
+      return `Reaccionó ${msg.reaction?.emoji ?? ""}`.trim();
+    default:
+      return `[${msg.type}]`;
+  }
+}
+
+export function verifyWebhook(c: Context<AppEnv>) {
+  const q = c.req.query();
+  if (
+    !c.env.VERIFY_TOKEN ||
+    q["hub.mode"] !== "subscribe" ||
+    q["hub.verify_token"] !== c.env.VERIFY_TOKEN
+  ) {
+    return c.text("Forbidden", 403);
+  }
+  return c.text(q["hub.challenge"] ?? "");
+}
+
+export async function receiveWebhook(c: Context<AppEnv>) {
+  const raw = await c.req.text();
+
+  if (!c.env.APP_SECRET) {
+    console.error("APP_SECRET no configurado: se rechaza el webhook");
+    return c.text("Server not configured", 500);
+  }
+  const signature = c.req.header("X-Hub-Signature-256") ?? "";
+  const expected = "sha256=" + (await hmacSha256Hex(c.env.APP_SECRET, raw));
+  if (!safeEqual(signature, expected)) return c.text("Invalid signature", 401);
+
+  let body: any;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return c.text("Bad Request", 400);
+  }
+  if (body.object !== "whatsapp_business_account") return c.text("OK");
+
+  const db = c.env.DB;
+  for (const entry of body.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      const value = change.value ?? {};
+      // Solo mensajes del número configurado en este Worker.
+      if (value.metadata?.phone_number_id && value.metadata.phone_number_id !== c.env.PHONE_NUMBER_ID) {
+        continue;
+      }
+      const names = new Map<string, string>(
+        (value.contacts ?? []).map((ct: any) => [ct.wa_id, ct.profile?.name])
+      );
+      for (const msg of value.messages ?? []) {
+        await saveMessage(db, {
+          waId: msg.from,
+          profileName: names.get(msg.from) ?? null,
+          wamid: msg.id ?? null,
+          direction: "in",
+          type: msg.type,
+          body: describeMessage(msg),
+          payload: msg,
+          status: "received",
+          createdAt: parseInt(msg.timestamp, 10) * 1000 || Date.now()
+        });
+      }
+      for (const st of value.statuses ?? []) {
+        const error = st.errors?.[0]
+          ? `${st.errors[0].title ?? ""} ${st.errors[0].error_data?.details ?? ""}`.trim()
+          : null;
+        await updateStatus(db, st.id, st.status, error);
+      }
+    }
+  }
+  return c.text("OK");
+}
