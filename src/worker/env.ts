@@ -10,6 +10,9 @@ export interface Env {
 
   // Variables (wrangler.jsonc)
   PHONE_NUMBER_ID: string;
+  // Cuenta de WhatsApp (plantillas) y app de Meta (subida de ejemplos de encabezado).
+  WABA_ID: string;
+  APP_ID: string;
   GRAPH_API_VERSION: string;
 
   // Secretos (wrangler secret put)

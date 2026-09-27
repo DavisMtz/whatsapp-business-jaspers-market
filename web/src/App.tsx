@@ -62,7 +62,7 @@ export default function App() {
       </nav>
       <main className="main">
         {view === "chats" && <Chats onError={onError} />}
-        {view === "templates" && <Templates />}
+        {view === "templates" && <Templates onError={onError} />}
         {view === "settings" && <Settings email={email} onError={onError} onLogout={logout} />}
       </main>
     </div>

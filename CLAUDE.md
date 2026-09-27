@@ -14,6 +14,7 @@ Bandeja de WhatsApp Business de **Logidma**, para una sola persona, en **Cloudfl
   - `media.ts`: archivos en R2 (`/api/media/:id` con sesión y `Range`; `/api/media/send`).
   - `realtime.ts`: Durable Object `RealtimeHub` (WebSocket con hibernación en `/api/ws`). Solo manda ids; el navegador vuelve a pedir los datos.
   - `contacts.ts`: notas y etiquetas.
+  - `templates.ts`: plantillas (listar/crear/editar/borrar en Meta, copia en D1, cambios por webhook, tarifas).
 - `web/` — frontend React + Vite (se compila a `dist/`). Páginas en `web/src/pages/`.
 - `web/public/` — páginas legales públicas: `/privacidad`, `/terminos`, `/eliminacion-datos`. Meta las exige, ya están registradas en la app y no hay que moverlas.
 - `migrations/` — esquema de D1. Nunca edites una migración aplicada: crea `0002_...sql`.
@@ -31,6 +32,7 @@ Bandeja de WhatsApp Business de **Logidma**, para una sola persona, en **Cloudfl
 | Negocio Meta | Logidma `1966123967356413` |
 | App Meta | Agente Logidma `4790523007843058` (publicada, en modo live) |
 | Cuenta de WhatsApp | `4659287351061167` (suscrita a la app) |
+| `WABA_ID` / `APP_ID` | Vars en `wrangler.jsonc` (plantillas y subida del ejemplo de encabezado) |
 | Número | +52 1 443 848 0153 — Phone Number ID `1253350567872957` |
 | Webhook | `https://wa.logidma.com/webhook` (11 campos suscritos, incluye `messages` y `message_statuses`) |
 | Usuario del sistema | "David Martinez", rol Employee, con control total de la app y de la cuenta de WhatsApp |
@@ -62,7 +64,7 @@ Para desplegar desde una sesión hacen falta `CLOUDFLARE_API_TOKEN` y `CLOUDFLAR
 
 - [x] **Fase 1** — Login con correo (solo `ADMIN_EMAIL`), D1, bandeja de chats, envío de texto y plantillas, ventana de 24 h, archivar y renombrar, configuración.
 - [x] **Fase 2** (desplegada el 2026-09-27) — Multimedia en R2 (recibir y enviar imágenes, video, audio, notas de voz y documentos), tiempo real con Durable Object + WebSocket (el polling queda de respaldo: 60 s conectado, 5 s/4 s sin conexión), notas y etiquetas por contacto.
-- [ ] **Fase 3** — Plantillas: listar, crear, editar y borrar vía Graph API (`/{waba-id}/message_templates`), con estado de aprobación en vivo (webhook `message_template_status_update`), vista previa, variables al enviar y costo estimado por categoría.
+- [x] **Fase 3** (lista para desplegar) — Plantillas: listar, crear, editar y borrar vía Graph API (`/{waba-id}/message_templates`), con estado de aprobación en vivo (webhook `message_template_status_update`), vista previa, variables al enviar y costo estimado por categoría. Webhook: `message_template_status_update`, `template_category_update`, `message_template_quality_update` (confirmar que estén suscritos). Tarifas editables en Plantillas → Tarifas.
 - [ ] **Fase 4** — IA configurable en Configuración → IA: respuesta automática global o por chat, instrucciones y base de conocimiento, horario, límite por chat, traspaso a humano, respuesta sugerida y resumen. El proveedor se elige entre **Workers AI** y **Claude API**. Debe ser un asistente específico del negocio (Meta prohíbe chatbots de IA de propósito general). Solo responde dentro de la ventana de 24 h.
 - [ ] **Fase 5** — Métricas (volumen, tiempo de respuesta, gasto estimado), respuestas rápidas con `/` y notificaciones del navegador.
 

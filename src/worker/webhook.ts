@@ -4,6 +4,7 @@ import type { AppEnv } from "./env";
 import { storeInbound } from "./media";
 import { notify } from "./realtime";
 import { saveMessage, updateStatus } from "./store";
+import { applyTemplateChange, TEMPLATE_FIELDS } from "./templates";
 
 const MEDIA_TYPES = ["image", "video", "audio", "document", "sticker"];
 
@@ -76,9 +77,21 @@ export async function receiveWebhook(c: Context<AppEnv>) {
   const db = env.DB;
   const changed = new Set<number>();
   const downloads: Promise<unknown>[] = [];
+  let templatesChanged = false;
   for (const entry of body.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value ?? {};
+      // Aprobación, categoría o calidad de una plantilla de esta cuenta.
+      if (TEMPLATE_FIELDS.includes(change.field)) {
+        if (String(entry.id) !== env.WABA_ID) continue;
+        try {
+          await applyTemplateChange(env, change.field, value);
+          templatesChanged = true;
+        } catch (e) {
+          console.error("Error al actualizar la plantilla", e);
+        }
+        continue;
+      }
       // Solo mensajes del número configurado en este Worker.
       if (value.metadata?.phone_number_id && value.metadata.phone_number_id !== c.env.PHONE_NUMBER_ID) {
         continue;
@@ -126,6 +139,7 @@ export async function receiveWebhook(c: Context<AppEnv>) {
   c.executionCtx.waitUntil(
     Promise.all([
       ...[...changed].map(id => notify(env, { type: "message", conversationId: id })),
+      ...(templatesChanged ? [notify(env, { type: "templates" })] : []),
       ...downloads
     ])
   );

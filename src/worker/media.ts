@@ -66,6 +66,22 @@ function contentDisposition(kind: "inline" | "attachment", name: string) {
   return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 }
 
+type Outbound = { mime: string; name: string; kind: "image" | "video" | "audio" | "document" };
+
+// Tipo de WhatsApp de un archivo por enviar y si cabe en su límite de tamaño.
+export function checkOutbound(file: File): Outbound | { error: string } {
+  const mime = baseMime(file.type || "application/octet-stream");
+  const name = (file.name || "archivo").slice(0, 200);
+  const rule = OUTBOUND.find(r => r.mimes.includes(mime));
+  const kind = rule?.kind ?? "document";
+  const max = rule?.max ?? DOCUMENT_MAX;
+  if (file.size > max) {
+    const label = { image: "Las imágenes", video: "Los videos", audio: "Los audios", document: "Los documentos" }[kind];
+    return { error: `${label} pueden pesar hasta ${max / MB} MB en WhatsApp` };
+  }
+  return { mime, name, kind };
+}
+
 export const mediaRoutes = new Hono<AppEnv>();
 
 // GET /api/media/:messageId[?download=1] — sirve el archivo de un mensaje (con soporte de Range
@@ -116,6 +132,19 @@ mediaRoutes.get("/:messageId", async c => {
   return new Response(obj.body, { headers });
 });
 
+// POST /api/media/upload (multipart): file — lo sube a Meta y devuelve su media_id
+// (para el encabezado multimedia de una plantilla).
+mediaRoutes.post("/upload", async c => {
+  const form = await c.req.formData().catch(() => null);
+  const file = form?.get("file");
+  if (!(file instanceof File) || file.size === 0) return c.json({ error: "Elige un archivo" }, 400);
+  const checked = checkOutbound(file);
+  if ("error" in checked) return c.json({ error: checked.error }, 400);
+  const uploaded = await uploadMedia(c.env, file, checked.mime, checked.name);
+  if ("error" in uploaded) return c.json({ error: uploaded.error }, 502);
+  return c.json({ id: uploaded.id, kind: checked.kind, mime: checked.mime, name: checked.name });
+});
+
 // POST /api/media/send (multipart): to, file, caption? — sube el archivo a Meta y lo envía.
 mediaRoutes.post("/send", async c => {
   const form = await c.req.formData().catch(() => null);
@@ -125,15 +154,9 @@ mediaRoutes.post("/send", async c => {
   if (!to) return c.json({ error: "Falta el número destino" }, 400);
   if (!(file instanceof File) || file.size === 0) return c.json({ error: "Elige un archivo" }, 400);
 
-  const mime = baseMime(file.type || "application/octet-stream");
-  const name = (file.name || "archivo").slice(0, 200);
-  const rule = OUTBOUND.find(r => r.mimes.includes(mime));
-  const kind = rule?.kind ?? "document";
-  const max = rule?.max ?? DOCUMENT_MAX;
-  if (file.size > max) {
-    const label = { image: "Las imágenes", video: "Los videos", audio: "Los audios", document: "Los documentos" }[kind];
-    return c.json({ error: `${label} pueden pesar hasta ${max / MB} MB en WhatsApp` }, 400);
-  }
+  const checked = checkOutbound(file);
+  if ("error" in checked) return c.json({ error: checked.error }, 400);
+  const { mime, name, kind } = checked;
 
   const uploaded = await uploadMedia(c.env, file, mime, name);
   if ("error" in uploaded) return c.json({ error: uploaded.error }, 502);

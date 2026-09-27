@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type FormEvent } from "react";
 import { api, upload, type Conversation, type Message, type Tag } from "../api";
 import ContactPanel from "../components/ContactPanel";
+import TemplateSender from "../components/TemplateSender";
 import MessageMedia from "../components/MessageMedia";
 import TagChip from "../components/TagChip";
 import {
@@ -447,7 +448,7 @@ function Composer({ to, windowOpen, onSent }: { to: string; windowOpen: boolean;
           )}
         </form>
       ) : (
-        <TemplateForm
+        <TemplateSender
           to={to}
           onSent={onSent}
           onCancel={windowOpen ? () => setMode("text") : undefined}
@@ -618,67 +619,6 @@ function VoiceRecorder({ onRecorded, onError }: { onRecorded: (f: File) => void;
   );
 }
 
-const LANGUAGES = [
-  ["es_MX", "Español (México)"],
-  ["es", "Español"],
-  ["en_US", "Inglés (EE. UU.)"],
-  ["en", "Inglés"]
-];
-
-function TemplateForm({
-  to,
-  onSent,
-  onCancel
-}: {
-  to: string;
-  onSent: (conversationId?: number) => void;
-  onCancel?: () => void;
-}) {
-  const [name, setName] = useState("");
-  const [language, setLanguage] = useState("es_MX");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const send = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const r = await api<{ conversationId: number }>("/messages", {
-        body: { to, template: { name: name.trim(), language } }
-      });
-      setName("");
-      onSent(r.conversationId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo enviar");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <form className="template-form" onSubmit={send}>
-      {error && <div className="alert error">{error}</div>}
-      <input value={name} onChange={e => setName(e.target.value)} placeholder="Nombre de la plantilla" required />
-      <select value={language} onChange={e => setLanguage(e.target.value)}>
-        {LANGUAGES.map(([code, label]) => (
-          <option key={code} value={code}>
-            {label}
-          </option>
-        ))}
-      </select>
-      <button className="btn primary" disabled={busy || !to}>
-        {busy ? "Enviando…" : "Enviar plantilla"}
-      </button>
-      {onCancel && (
-        <button type="button" className="btn" onClick={onCancel}>
-          Cancelar
-        </button>
-      )}
-    </form>
-  );
-}
-
 function NewChat({ onClose, onSent }: { onClose: () => void; onSent: (id: number) => void }) {
   const [to, setTo] = useState("");
   const digits = to.replace(/\D/g, "");
@@ -708,7 +648,7 @@ function NewChat({ onClose, onSent }: { onClose: () => void; onSent: (id: number
             autoFocus
           />
         </label>
-        <TemplateForm to={digits} onSent={id => id && onSent(id)} />
+        <TemplateSender to={digits} onSent={id => id && onSent(id)} />
       </div>
     </div>
   );
