@@ -15,6 +15,7 @@ Basado en el ejemplo [Jasper's Market](https://github.com/fbsamples/whatsapp-bus
 | App de desarrollador | Agente Logidma (`4790523007843058`) |
 | Negocio | Logidma (`1966123967356413`) |
 | Número | +52 1 443 848 0153 — Phone Number ID `1253350567872957` |
+| Dominio | https://wa.logidma.com (webhook en `/webhook`) |
 
 ## Configuración
 
@@ -41,7 +42,7 @@ Secretos (se cargan en Cloudflare, **nunca** en el repositorio):
 1. Cloudflare → **Workers & Pages** → **Create** → **Import a repository** → elige este repositorio.
 2. Deploy command: `npx wrangler deploy`. Rama de producción: `main`.
 3. Una vez creado, en el Worker **agente-logidma** → **Settings** → **Variables and Secrets**, agrega los 4 secretos como tipo **Secret**.
-4. La URL queda como `https://agente-logidma.<tu-subdominio>.workers.dev`.
+4. El Worker responde en `https://wa.logidma.com` (definido en `routes` de `wrangler.jsonc`; Cloudflare crea el DNS y el certificado) y también en `https://agente-logidma.logidma.workers.dev`.
 
 Cada push a `main` vuelve a desplegar automáticamente.
 
@@ -59,9 +60,9 @@ npm run deploy
 
 ### Conectar con Meta
 
-Con la URL del Worker:
+Con el dominio del Worker:
 
-1. Webhook de Agente Logidma → Callback URL `https://<tu-worker>/webhook`, Verify token = `VERIFY_TOKEN`, campo `messages` suscrito.
+1. Webhook de Agente Logidma → Callback URL `https://wa.logidma.com/webhook`, Verify token = `VERIFY_TOKEN`, campo `messages` suscrito.
 2. Suscribir la cuenta de WhatsApp de Logidma a la app.
 3. Publicar la app y agregar un método de pago en Meta.
 

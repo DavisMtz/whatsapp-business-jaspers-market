@@ -5,6 +5,11 @@
   "compatibility_date": "2025-09-01",
   "observability": { "enabled": true },
 
+  // Dominio público del agente. Cloudflare crea el DNS y el certificado.
+  // workers_dev se deja activo para no cortar la URL *.workers.dev.
+  "routes": [{ "pattern": "wa.logidma.com", "custom_domain": true }],
+  "workers_dev": true,
+
   // El panel estático vive en /public; el Worker corre primero para
   // proteger el panel con contraseña y atender /webhook y /api/*.
   "assets": {
