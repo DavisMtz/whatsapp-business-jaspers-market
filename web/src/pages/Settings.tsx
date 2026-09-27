@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { api } from "../api";
+import { api, type Tag } from "../api";
+import TagChip from "../components/TagChip";
+import { TAG_LABEL } from "../format";
 
 type Status = {
   phoneNumberId: string;
@@ -32,6 +34,7 @@ export default function Settings({
         <h2>Configuración</h2>
       </header>
       <Security email={email} onError={onError} onLogout={onLogout} />
+      <Tags onError={onError} />
       <Connection onError={onError} />
     </div>
   );
@@ -171,6 +174,104 @@ function Connection({ onError }: { onError: (e: unknown) => void }) {
           </div>
         </>
       )}
+    </section>
+  );
+}
+
+function Tags({ onError }: { onError: (e: unknown) => void }) {
+  const [tags, setTags] = useState<(Tag & { contacts: number })[]>([]);
+  const [colors, setColors] = useState<string[]>([]);
+  const [name, setName] = useState("");
+  const [color, setColor] = useState("green");
+  const [msg, setMsg] = useState("");
+
+  const load = () =>
+    api<{ tags: (Tag & { contacts: number })[]; colors: string[] }>("/tags")
+      .then(r => {
+        setTags(r.tags);
+        setColors(r.colors);
+      })
+      .catch(onError);
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setMsg("");
+    try {
+      await fn();
+      await load();
+    } catch (err) {
+      onError(err);
+      setMsg(err instanceof Error ? err.message : "No se pudo guardar");
+    }
+  };
+
+  const create = (e: FormEvent) => {
+    e.preventDefault();
+    run(async () => {
+      await api("/tags", { body: { name, color } });
+      setName("");
+    });
+  };
+
+  const rename = (t: Tag) => {
+    const next = prompt("Nuevo nombre de la etiqueta", t.name);
+    if (next && next.trim() && next !== t.name) run(() => api(`/tags/${t.id}`, { method: "PATCH", body: { name: next } }));
+  };
+
+  const remove = (t: Tag & { contacts: number }) => {
+    const detail = t.contacts ? ` Se quitará de ${t.contacts} contacto(s).` : "";
+    if (confirm(`¿Borrar la etiqueta "${t.name}"?${detail}`)) run(() => api(`/tags/${t.id}`, { method: "DELETE" }));
+  };
+
+  return (
+    <section className="card">
+      <h3>Etiquetas</h3>
+      <p className="muted">Organiza tus contactos. Se asignan desde el botón ℹ️ de cada chat.</p>
+      {tags.length > 0 && (
+        <ul className="tag-admin">
+          {tags.map(t => (
+            <li key={t.id}>
+              <TagChip tag={t} />
+              <span className="muted small">{t.contacts} contacto(s)</span>
+              <select
+                value={t.color}
+                aria-label="Color"
+                onChange={e => run(() => api(`/tags/${t.id}`, { method: "PATCH", body: { color: e.target.value } }))}
+              >
+                {colors.map(c => (
+                  <option key={c} value={c}>
+                    {TAG_LABEL[c] ?? c}
+                  </option>
+                ))}
+              </select>
+              <button className="btn small" onClick={() => rename(t)}>
+                Renombrar
+              </button>
+              <button className="btn small danger" onClick={() => remove(t)}>
+                Borrar
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="new-tag" onSubmit={create}>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Nueva etiqueta" maxLength={30} />
+        <select value={color} onChange={e => setColor(e.target.value)} aria-label="Color">
+          {colors.map(c => (
+            <option key={c} value={c}>
+              {TAG_LABEL[c] ?? c}
+            </option>
+          ))}
+        </select>
+        <button className="btn primary" disabled={!name.trim()}>
+          Crear
+        </button>
+      </form>
+      {msg && <div className="alert error">{msg}</div>}
     </section>
   );
 }

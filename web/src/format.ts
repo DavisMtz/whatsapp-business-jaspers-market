@@ -46,3 +46,35 @@ export function formatDuration(ms: number): string {
   const m = Math.floor((ms % 3600000) / 60000);
   return h > 0 ? `${h} h ${m} min` : `${m} min`;
 }
+
+export function formatSize(bytes: number | null): string {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+// Colores de etiqueta (los nombres los valida el Worker).
+export const TAG_HEX: Record<string, string> = {
+  green: "#1f9d55",
+  teal: "#0f9488",
+  blue: "#2f6fde",
+  purple: "#7c4ddb",
+  pink: "#d0418a",
+  red: "#d93025",
+  orange: "#e0701a",
+  yellow: "#b88a00",
+  gray: "#6b7780"
+};
+
+export const TAG_LABEL: Record<string, string> = {
+  green: "Verde",
+  teal: "Turquesa",
+  blue: "Azul",
+  purple: "Morado",
+  pink: "Rosa",
+  red: "Rojo",
+  orange: "Naranja",
+  yellow: "Amarillo",
+  gray: "Gris"
+};

@@ -1,6 +1,12 @@
+import type { RealtimeHub } from "./realtime";
+
 export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
+  // Multimedia recibida y enviada (bucket agente-logidma-media).
+  MEDIA: R2Bucket;
+  // Durable Object con los WebSocket del panel.
+  HUB: DurableObjectNamespace<RealtimeHub>;
 
   // Variables (wrangler.jsonc)
   PHONE_NUMBER_ID: string;

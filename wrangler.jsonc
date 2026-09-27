@@ -30,11 +30,20 @@
     }
   ],
 
+  // Multimedia recibida y enviada. Solo el Worker la lee (no es pública).
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "agente-logidma-media" }],
+
+  // WebSocket de avisos en tiempo real para el panel.
+  "durable_objects": {
+    "bindings": [{ "name": "HUB", "class_name": "RealtimeHub" }]
+  },
+
   // v1 creó el Durable Object del historial original; v2 lo elimina
-  // (los mensajes ahora viven en D1).
+  // (los mensajes ahora viven en D1); v3 crea el de tiempo real.
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["MessageStore"] },
-    { "tag": "v2", "deleted_classes": ["MessageStore"] }
+    { "tag": "v2", "deleted_classes": ["MessageStore"] },
+    { "tag": "v3", "new_sqlite_classes": ["RealtimeHub"] }
   ],
 
   // Valores no secretos. Los secretos (ACCESS_TOKEN, APP_SECRET,
