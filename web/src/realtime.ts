@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 export type RealtimeEvent =
   | { type: "message"; conversationId: number }
   | { type: "conversation"; conversationId: number | null }
+  | { type: "templates" }
   | { type: "resync" };
 
 type Listener = (e: RealtimeEvent) => void;

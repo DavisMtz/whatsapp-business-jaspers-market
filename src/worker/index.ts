@@ -13,6 +13,7 @@ import { graphSend } from "./graph";
 import { mediaRoutes } from "./media";
 import { connect, notify } from "./realtime";
 import { saveMessage, WINDOW_MS } from "./store";
+import { templatePreview, templateRoutes } from "./templates";
 import { receiveWebhook, verifyWebhook } from "./webhook";
 
 export { RealtimeHub } from "./realtime";
@@ -30,6 +31,7 @@ api.route("/account", accountRoutes);
 api.route("/contacts", contactRoutes);
 api.route("/tags", tagRoutes);
 api.route("/media", mediaRoutes);
+api.route("/templates", templateRoutes);
 
 // El navegador no manda Origin falso en un WebSocket: se exige el del propio sitio.
 api.get("/ws", async c => {
@@ -96,7 +98,7 @@ api.patch("/conversations/:id", async c => {
 
 // ── Envío ────────────────────────────────────────────────────
 
-// body: { to, text } o { to, template: { name, language } }
+// body: { to, text } o { to, template: { name, language, components? } }
 api.post("/messages", async c => {
   const body = await c.req.json().catch(() => ({}));
   const to = String(body.to ?? "").replace(/\D/g, "");
@@ -111,15 +113,11 @@ api.post("/messages", async c => {
     payload = { type: "text", text: { body: preview, preview_url: true } };
   } else if (body.template?.name) {
     type = "template";
-    preview = `📋 Plantilla: ${body.template.name}`;
-    payload = {
-      type: "template",
-      template: {
-        name: String(body.template.name),
-        language: { code: String(body.template.language || "es_MX") },
-        components: Array.isArray(body.template.components) ? body.template.components : []
-      }
-    };
+    const name = String(body.template.name);
+    const language = String(body.template.language || "es_MX");
+    const components = Array.isArray(body.template.components) ? body.template.components : [];
+    preview = await templatePreview(c.env.DB, name, language, components);
+    payload = { type: "template", template: { name, language: { code: language }, components } };
   } else {
     return c.json({ error: "Escribe un mensaje o elige una plantilla" }, 400);
   }

@@ -7,7 +7,8 @@ import type { Env } from "./env";
 
 export type RealtimeEvent =
   | { type: "message"; conversationId: number }
-  | { type: "conversation"; conversationId: number | null };
+  | { type: "conversation"; conversationId: number | null }
+  | { type: "templates" };
 
 export class RealtimeHub extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {

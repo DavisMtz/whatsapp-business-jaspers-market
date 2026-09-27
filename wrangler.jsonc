@@ -51,6 +51,8 @@
   // `wrangler secret put` o en el panel de Cloudflare, nunca aquí.
   "vars": {
     "PHONE_NUMBER_ID": "1253350567872957",
+    "WABA_ID": "4659287351061167",
+    "APP_ID": "4790523007843058",
     "GRAPH_API_VERSION": "v23.0"
   }
 }
