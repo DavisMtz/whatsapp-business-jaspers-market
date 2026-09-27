@@ -1,0 +1,176 @@
+import { useEffect, useState, type FormEvent } from "react";
+import { api } from "../api";
+
+type Status = {
+  phoneNumberId: string;
+  webhookUrl: string;
+  graphApiVersion: string;
+  accessToken: boolean;
+  appSecret: boolean;
+  verifyToken: boolean;
+  phone?: {
+    display_phone_number?: string;
+    verified_name?: string;
+    quality_rating?: string;
+    name_status?: string;
+    error?: string;
+  };
+};
+
+export default function Settings({
+  email,
+  onError,
+  onLogout
+}: {
+  email: string;
+  onError: (e: unknown) => void;
+  onLogout: () => void;
+}) {
+  return (
+    <div className="page">
+      <header className="page-header">
+        <h2>Configuración</h2>
+      </header>
+      <Security email={email} onError={onError} onLogout={onLogout} />
+      <Connection onError={onError} />
+    </div>
+  );
+}
+
+function Security({ email, onError, onLogout }: { email: string; onError: (e: unknown) => void; onLogout: () => void }) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const change = async (e: FormEvent) => {
+    e.preventDefault();
+    setMsg(null);
+    if (next !== confirm) return setMsg({ type: "error", text: "Las contraseñas nuevas no coinciden" });
+    setBusy(true);
+    try {
+      await api("/account/password", { body: { current, next } });
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      setMsg({ type: "success", text: "Contraseña actualizada. Se cerraron tus otras sesiones." });
+    } catch (err) {
+      onError(err);
+      setMsg({ type: "error", text: err instanceof Error ? err.message : "No se pudo cambiar" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const logoutOthers = async () => {
+    try {
+      const r = await api<{ closed: number }>("/account/logout-others", { body: {} });
+      setMsg({ type: "success", text: `Se cerraron ${r.closed} sesión(es) en otros dispositivos.` });
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  return (
+    <section className="card">
+      <h3>Cuenta y seguridad</h3>
+      <p className="muted">
+        Sesión iniciada como <strong>{email}</strong>
+      </p>
+      <form className="form-grid" onSubmit={change}>
+        <label>
+          Contraseña actual
+          <input type="password" autoComplete="current-password" value={current} onChange={e => setCurrent(e.target.value)} required />
+        </label>
+        <label>
+          Nueva contraseña (mínimo 10 caracteres)
+          <input type="password" autoComplete="new-password" minLength={10} value={next} onChange={e => setNext(e.target.value)} required />
+        </label>
+        <label>
+          Confirmar nueva contraseña
+          <input type="password" autoComplete="new-password" minLength={10} value={confirm} onChange={e => setConfirm(e.target.value)} required />
+        </label>
+        {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
+        <div className="row">
+          <button className="btn primary" disabled={busy}>
+            {busy ? "Guardando…" : "Cambiar contraseña"}
+          </button>
+        </div>
+      </form>
+      <div className="row separator">
+        <button className="btn" onClick={logoutOthers}>
+          Cerrar sesión en otros dispositivos
+        </button>
+        <button className="btn danger" onClick={onLogout}>
+          Cerrar sesión
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function Connection({ onError }: { onError: (e: unknown) => void }) {
+  const [status, setStatus] = useState<Status | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  useEffect(() => {
+    api<Status>("/status").then(setStatus).catch(onError);
+  }, [onError]);
+
+  const check = async () => {
+    setChecking(true);
+    try {
+      setStatus(await api<Status>("/status?check=1"));
+    } catch (err) {
+      onError(err);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const ok = (v: boolean) => (v ? "✅ Configurado" : "❌ Falta");
+
+  return (
+    <section className="card">
+      <h3>Conexión con WhatsApp</h3>
+      {!status ? (
+        <p className="muted">Cargando…</p>
+      ) : (
+        <>
+          <dl className="info-grid">
+            <dt>Phone Number ID</dt>
+            <dd>{status.phoneNumberId}</dd>
+            <dt>URL del webhook</dt>
+            <dd className="mono">{status.webhookUrl}</dd>
+            <dt>Token de acceso</dt>
+            <dd>{ok(status.accessToken)}</dd>
+            <dt>App Secret</dt>
+            <dd>{ok(status.appSecret)}</dd>
+            <dt>Verify token</dt>
+            <dd>{ok(status.verifyToken)}</dd>
+            <dt>Graph API</dt>
+            <dd>{status.graphApiVersion}</dd>
+            {status.phone && !status.phone.error && (
+              <>
+                <dt>Número</dt>
+                <dd>
+                  {status.phone.display_phone_number} · {status.phone.verified_name}
+                </dd>
+                <dt>Calidad</dt>
+                <dd>{status.phone.quality_rating}</dd>
+              </>
+            )}
+          </dl>
+          {status.phone?.error && <div className="alert error">Meta respondió: {status.phone.error}</div>}
+          {status.phone && !status.phone.error && <div className="alert success">Conexión con Meta correcta.</div>}
+          <div className="row">
+            <button className="btn" onClick={check} disabled={checking}>
+              {checking ? "Probando…" : "Probar conexión con Meta"}
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}

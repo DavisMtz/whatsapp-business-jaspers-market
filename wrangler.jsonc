@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "agente-logidma",
-  "main": "src/worker.js",
+  "main": "src/worker/index.ts",
   "compatibility_date": "2025-09-01",
   "observability": { "enabled": true },
 
@@ -12,22 +12,34 @@
   "workers_dev": false,
   "preview_urls": false,
 
-  // El panel estático vive en /public; el Worker corre primero para
-  // proteger el panel con contraseña y atender /webhook y /api/*.
+  // Frontend (React) compilado por Vite en /dist. El Worker solo atiende
+  // /api/* y /webhook; el resto lo sirve Cloudflare como sitio estático.
   "assets": {
-    "directory": "public",
+    "directory": "dist",
     "binding": "ASSETS",
-    "run_worker_first": true
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/webhook"]
   },
 
-  "durable_objects": {
-    "bindings": [{ "name": "MESSAGES", "class_name": "MessageStore" }]
-  },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MessageStore"] }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "agente-logidma",
+      "database_id": "8e3a8d25-afc0-4a0c-b60d-625c8ac5022f",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // v1 creó el Durable Object del historial original; v2 lo elimina
+  // (los mensajes ahora viven en D1).
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["MessageStore"] },
+    { "tag": "v2", "deleted_classes": ["MessageStore"] }
+  ],
 
   // Valores no secretos. Los secretos (ACCESS_TOKEN, APP_SECRET,
-  // VERIFY_TOKEN, DASHBOARD_PASSWORD) se cargan con `wrangler secret put`
-  // o en el panel de Cloudflare, nunca aquí.
+  // VERIFY_TOKEN, ADMIN_EMAIL, DASHBOARD_PASSWORD) se cargan con
+  // `wrangler secret put` o en el panel de Cloudflare, nunca aquí.
   "vars": {
     "PHONE_NUMBER_ID": "1253350567872957",
     "GRAPH_API_VERSION": "v23.0"
