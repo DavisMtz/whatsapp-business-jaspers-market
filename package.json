@@ -1,6 +1,6 @@
 {
   "name": "agente-logidma",
-  "version": "3.1.0",
+  "version": "4.0.0",
   "description": "Agente Logidma — WhatsApp Business en Cloudflare Workers",
   "keywords": [
     "whatsapp",
@@ -28,6 +28,7 @@
     "wrangler": "^4.42.0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "hono": "^4.13.9",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

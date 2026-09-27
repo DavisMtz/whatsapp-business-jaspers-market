@@ -38,6 +38,9 @@
     "bindings": [{ "name": "HUB", "class_name": "RealtimeHub" }]
   },
 
+  // Workers AI: uno de los dos proveedores del asistente (el otro es la Claude API).
+  "ai": { "binding": "AI", "remote": true },
+
   // v1 creó el Durable Object del historial original; v2 lo elimina
   // (los mensajes ahora viven en D1); v3 crea el de tiempo real.
   "migrations": [
@@ -47,7 +50,8 @@
   ],
 
   // Valores no secretos. Los secretos (ACCESS_TOKEN, APP_SECRET,
-  // VERIFY_TOKEN, ADMIN_EMAIL, DASHBOARD_PASSWORD) se cargan con
+  // VERIFY_TOKEN, ADMIN_EMAIL, DASHBOARD_PASSWORD y, opcional,
+  // ANTHROPIC_API_KEY) se cargan con
   // `wrangler secret put` o en el panel de Cloudflare, nunca aquí.
   "vars": {
     "PHONE_NUMBER_ID": "1253350567872957",

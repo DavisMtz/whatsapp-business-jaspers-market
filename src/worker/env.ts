@@ -7,6 +7,8 @@ export interface Env {
   MEDIA: R2Bucket;
   // Durable Object con los WebSocket del panel.
   HUB: DurableObjectNamespace<RealtimeHub>;
+  // Workers AI (proveedor de IA sin llave).
+  AI: Ai;
 
   // Variables (wrangler.jsonc)
   PHONE_NUMBER_ID: string;
@@ -22,6 +24,8 @@ export interface Env {
   ADMIN_EMAIL: string;
   // Contraseña inicial: solo se usa para crear el usuario la primera vez.
   DASHBOARD_PASSWORD: string;
+  // Opcional: llave de la Claude API (proveedor "claude" en Configuración → IA).
+  ANTHROPIC_API_KEY?: string;
 }
 
 export type Session = { userId: number; email: string; sessionId: string };

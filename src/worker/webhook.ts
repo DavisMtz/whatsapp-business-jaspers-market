@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import { autoReply, shouldTrigger } from "./ai";
 import { hmacSha256Hex, safeEqual } from "./crypto";
 import type { AppEnv } from "./env";
 import { storeInbound } from "./media";
@@ -77,6 +78,8 @@ export async function receiveWebhook(c: Context<AppEnv>) {
   const db = env.DB;
   const changed = new Set<number>();
   const downloads: Promise<unknown>[] = [];
+  // Último mensaje entrante de cada chat que la IA podría contestar.
+  const toAnswer = new Map<number, number>();
   let templatesChanged = false;
   for (const entry of body.entry ?? []) {
     for (const change of entry.changes ?? []) {
@@ -118,6 +121,8 @@ export async function receiveWebhook(c: Context<AppEnv>) {
         });
         if (!saved) continue;
         changed.add(saved.conversationId);
+        if (shouldTrigger(msg.type)) toAnswer.set(saved.conversationId, saved.messageId);
+        else toAnswer.delete(saved.conversationId);
         // La descarga va en segundo plano para responder rápido a Meta; al terminar se avisa al panel.
         if (media?.id) {
           downloads.push(
@@ -140,7 +145,10 @@ export async function receiveWebhook(c: Context<AppEnv>) {
     Promise.all([
       ...[...changed].map(id => notify(env, { type: "message", conversationId: id })),
       ...(templatesChanged ? [notify(env, { type: "templates" })] : []),
-      ...downloads
+      ...downloads,
+      ...[...toAnswer].map(([conversationId, messageId]) =>
+        autoReply(env, conversationId, messageId).catch(e => console.error("Error en la respuesta automática", e))
+      )
     ])
   );
   return c.text("OK");
