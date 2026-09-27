@@ -1,0 +1,6 @@
+# Copia este archivo a .dev.vars para desarrollo local (npm run dev).
+# En producción, cárgalos como secretos en Cloudflare, nunca en el repo.
+ACCESS_TOKEN=token_permanente_del_usuario_del_sistema
+APP_SECRET=app_secret_de_agente_logidma
+VERIFY_TOKEN=frase_para_verificar_el_webhook
+DASHBOARD_PASSWORD=contraseña_del_panel
