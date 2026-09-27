@@ -61,7 +61,7 @@ Para desplegar desde una sesión hacen falta `CLOUDFLARE_API_TOKEN` y `CLOUDFLAR
 ## Plan (roadmap)
 
 - [x] **Fase 1** — Login con correo (solo `ADMIN_EMAIL`), D1, bandeja de chats, envío de texto y plantillas, ventana de 24 h, archivar y renombrar, configuración.
-- [x] **Fase 2** — Multimedia en R2 (recibir y enviar imágenes, video, audio, notas de voz y documentos), tiempo real con Durable Object + WebSocket (el polling queda de respaldo: 60 s conectado, 5 s/4 s sin conexión), notas y etiquetas por contacto.
+- [x] **Fase 2** (desplegada el 2026-09-27) — Multimedia en R2 (recibir y enviar imágenes, video, audio, notas de voz y documentos), tiempo real con Durable Object + WebSocket (el polling queda de respaldo: 60 s conectado, 5 s/4 s sin conexión), notas y etiquetas por contacto.
 - [ ] **Fase 3** — Plantillas: listar, crear, editar y borrar vía Graph API (`/{waba-id}/message_templates`), con estado de aprobación en vivo (webhook `message_template_status_update`), vista previa, variables al enviar y costo estimado por categoría.
 - [ ] **Fase 4** — IA configurable en Configuración → IA: respuesta automática global o por chat, instrucciones y base de conocimiento, horario, límite por chat, traspaso a humano, respuesta sugerida y resumen. El proveedor se elige entre **Workers AI** y **Claude API**. Debe ser un asistente específico del negocio (Meta prohíbe chatbots de IA de propósito general). Solo responde dentro de la ventana de 24 h.
 - [ ] **Fase 5** — Métricas (volumen, tiempo de respuesta, gasto estimado), respuestas rápidas con `/` y notificaciones del navegador.
