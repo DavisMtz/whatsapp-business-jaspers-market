@@ -6,9 +6,11 @@
   "observability": { "enabled": true },
 
   // Dominio público del agente. Cloudflare crea el DNS y el certificado.
-  // workers_dev se deja activo para no cortar la URL *.workers.dev.
+  // Solo se atiende en wa.logidma.com: *.workers.dev y las preview URLs
+  // quedan apagadas.
   "routes": [{ "pattern": "wa.logidma.com", "custom_domain": true }],
-  "workers_dev": true,
+  "workers_dev": false,
+  "preview_urls": false,
 
   // El panel estático vive en /public; el Worker corre primero para
   // proteger el panel con contraseña y atender /webhook y /api/*.

@@ -42,7 +42,7 @@ Secretos (se cargan en Cloudflare, **nunca** en el repositorio):
 1. Cloudflare → **Workers & Pages** → **Create** → **Import a repository** → elige este repositorio.
 2. Deploy command: `npx wrangler deploy`. Rama de producción: `main`.
 3. Una vez creado, en el Worker **agente-logidma** → **Settings** → **Variables and Secrets**, agrega los 4 secretos como tipo **Secret**.
-4. El Worker responde en `https://wa.logidma.com` (definido en `routes` de `wrangler.jsonc`; Cloudflare crea el DNS y el certificado) y también en `https://agente-logidma.logidma.workers.dev`.
+4. El Worker responde solo en `https://wa.logidma.com` (definido en `routes` de `wrangler.jsonc`; Cloudflare crea el DNS y el certificado). La URL `*.workers.dev` está apagada.
 
 Cada push a `main` vuelve a desplegar automáticamente.
 
