@@ -77,6 +77,8 @@ export async function receiveWebhook(c: Context<AppEnv>) {
   const env = c.env;
   const db = env.DB;
   const changed = new Set<number>();
+  // Conversaciones con mensajes nuevos del cliente (para las notificaciones del navegador).
+  const inbound = new Set<number>();
   const downloads: Promise<unknown>[] = [];
   // Último mensaje entrante de cada chat que la IA podría contestar.
   const toAnswer = new Map<number, number>();
@@ -121,6 +123,7 @@ export async function receiveWebhook(c: Context<AppEnv>) {
         });
         if (!saved) continue;
         changed.add(saved.conversationId);
+        inbound.add(saved.conversationId);
         if (shouldTrigger(msg.type)) toAnswer.set(saved.conversationId, saved.messageId);
         else toAnswer.delete(saved.conversationId);
         // La descarga va en segundo plano para responder rápido a Meta; al terminar se avisa al panel.
@@ -143,7 +146,7 @@ export async function receiveWebhook(c: Context<AppEnv>) {
   }
   c.executionCtx.waitUntil(
     Promise.all([
-      ...[...changed].map(id => notify(env, { type: "message", conversationId: id })),
+      ...[...changed].map(id => notify(env, { type: "message", conversationId: id, inbound: inbound.has(id) })),
       ...(templatesChanged ? [notify(env, { type: "templates" })] : []),
       ...downloads,
       ...[...toAnswer].map(([conversationId, messageId]) =>

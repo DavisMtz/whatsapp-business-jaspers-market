@@ -15,7 +15,17 @@ import {
   aiStatus,
   windowRemaining
 } from "../format";
+import { setActiveConversation } from "../notifications";
 import { useRealtime, type RealtimeEvent } from "../realtime";
+import {
+  applyQuickReply,
+  filterQuickReplies,
+  markUsed,
+  quickReplyQuery,
+  QuickReplyMenu,
+  useQuickReplies,
+  type QuickReply
+} from "../components/QuickReplies";
 
 type OnError = (e: unknown) => void;
 
@@ -61,6 +71,25 @@ export default function Chats({ onError }: { onError: OnError }) {
   }, [onError]);
 
   useEffect(loadTags, [loadTags]);
+
+  // #/chats/:id abre ese chat (lo usan las notificaciones).
+  useEffect(() => {
+    const fromHash = () => {
+      const id = Number(location.hash.match(/^#\/chats\/(\d+)/)?.[1]);
+      if (id) {
+        setSelectedId(id);
+        setNewChat(false);
+        setTab("open");
+        setQuery("");
+        setTagFilter(0);
+        // Se limpia para que otra notificación del mismo chat vuelva a funcionar.
+        history.replaceState(null, "", "#/chats");
+      }
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
+  }, []);
 
   // Cada aviso recarga la lista y, si es del chat abierto, sus mensajes.
   const onEvent = useCallback(
@@ -245,6 +274,11 @@ function ChatView({
 
   usePolling(load, live ? FALLBACK_MS : 4000, [load, live]);
 
+  useEffect(() => {
+    setActiveConversation(conversation.id);
+    return () => setActiveConversation(null);
+  }, [conversation.id]);
+
   // Aviso en tiempo real: mensaje de este chat, o reconexión (id null).
   useEffect(() => {
     if (event.n > 0 && (event.id === null || event.id === conversation.id)) load();
@@ -390,18 +424,24 @@ function ChatView({
         )}
       </div>
 
-      <Composer to={conversation.wa_id} conversationId={conversation.id} windowOpen={!!remaining} onSent={() => { load(); onChanged(); }} />
+      <Composer
+        to={conversation.wa_id}
+        contactName={conversation.custom_name || conversation.profile_name}
+        conversationId={conversation.id}
+        windowOpen={!!remaining} onSent={() => { load(); onChanged(); }} />
     </div>
   );
 }
 
 function Composer({
   to,
+  contactName,
   conversationId,
   windowOpen,
   onSent
 }: {
   to: string;
+  contactName: string | null;
   conversationId: number;
   windowOpen: boolean;
   onSent: () => void;
@@ -413,6 +453,21 @@ function Composer({
   const [file, setFile] = useState<File | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [suggesting, setSuggesting] = useState(false);
+
+  // Respuestas rápidas: el menú se abre mientras el texto sea "/atajo".
+  const quickReplies = useQuickReplies();
+  const [quickIndex, setQuickIndex] = useState(0);
+  const [quickClosed, setQuickClosed] = useState(false);
+  const quickQuery = quickClosed ? null : quickReplyQuery(text);
+  const quickItems = quickQuery === null ? [] : filterQuickReplies(quickReplies, quickQuery);
+  const textArea = useRef<HTMLTextAreaElement>(null);
+
+  const pickQuick = (r: QuickReply) => {
+    setText(applyQuickReply(r.text, contactName));
+    setQuickClosed(true);
+    markUsed(r.id);
+    textArea.current?.focus();
+  };
 
   const suggest = async () => {
     setSuggesting(true);
@@ -492,13 +547,46 @@ function Composer({
               e.target.value = "";
             }}
           />
+          {quickQuery !== null && (
+            <QuickReplyMenu
+              items={quickItems}
+              active={Math.min(quickIndex, Math.max(0, quickItems.length - 1))}
+              empty={quickReplies.length === 0}
+              onPick={pickQuick}
+              onHover={setQuickIndex}
+            />
+          )}
           <textarea
+            ref={textArea}
             rows={1}
             value={text}
-            placeholder="Escribe un mensaje"
+            placeholder="Escribe un mensaje o / para respuestas rápidas"
             onPaste={onPaste}
-            onChange={e => setText(e.target.value)}
+            onChange={e => {
+              setText(e.target.value);
+              setQuickClosed(false);
+              setQuickIndex(0);
+            }}
             onKeyDown={e => {
+              if (quickQuery !== null) {
+                const n = quickItems.length;
+                if (e.key === "ArrowDown" && n) {
+                  e.preventDefault();
+                  return setQuickIndex(i => (i + 1) % n);
+                }
+                if (e.key === "ArrowUp" && n) {
+                  e.preventDefault();
+                  return setQuickIndex(i => (i - 1 + n) % n);
+                }
+                if ((e.key === "Enter" || e.key === "Tab") && n) {
+                  e.preventDefault();
+                  return pickQuick(quickItems[Math.min(quickIndex, n - 1)]);
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  return setQuickClosed(true);
+                }
+              }
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 sendText();

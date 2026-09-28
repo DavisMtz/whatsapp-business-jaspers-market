@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 
 export type RealtimeEvent =
-  | { type: "message"; conversationId: number }
+  | { type: "message"; conversationId: number; inbound?: boolean }
   | { type: "conversation"; conversationId: number | null }
   | { type: "templates" }
   | { type: "resync" };

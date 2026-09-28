@@ -12,6 +12,8 @@ import { contactRoutes, tagRoutes } from "./contacts";
 import type { AppEnv } from "./env";
 import { graphSend } from "./graph";
 import { mediaRoutes } from "./media";
+import { metricsRoutes } from "./metrics";
+import { quickReplyRoutes } from "./quickReplies";
 import { connect, notify } from "./realtime";
 import { saveMessage, WINDOW_MS } from "./store";
 import { templatePreview, templateRoutes } from "./templates";
@@ -34,6 +36,8 @@ api.route("/tags", tagRoutes);
 api.route("/media", mediaRoutes);
 api.route("/templates", templateRoutes);
 api.route("/ai", aiRoutes);
+api.route("/metrics", metricsRoutes);
+api.route("/quick-replies", quickReplyRoutes);
 
 // El navegador no manda Origin falso en un WebSocket: se exige el del propio sitio.
 api.get("/ws", async c => {
@@ -66,6 +70,23 @@ api.get("/conversations", async c => {
   const conversations = results.map(r => ({ ...r, tags: JSON.parse(r.tags || "[]") }));
   const ai = await getAiConfig(c.env.DB);
   return c.json({ conversations, windowMs: WINDOW_MS, aiAutoReply: ai.autoReply });
+});
+
+// Resumen para notificaciones y el contador del título: no leídos en total y, con ?id, ese chat.
+api.get("/inbox", async c => {
+  const id = Number(c.req.query("id")) || 0;
+  const [unread, conv] = await Promise.all([
+    c.env.DB.prepare("SELECT COALESCE(sum(unread_count), 0) AS n FROM conversations WHERE status = 'open'").first<{ n: number }>(),
+    id
+      ? c.env.DB.prepare(
+          `SELECT cv.id, cv.wa_id, cv.last_preview, cv.last_direction, cv.unread_count, ct.profile_name, ct.custom_name
+           FROM conversations cv JOIN contacts ct ON ct.wa_id = cv.wa_id WHERE cv.id = ?`
+        )
+          .bind(id)
+          .first()
+      : null
+  ]);
+  return c.json({ unread: unread?.n ?? 0, conversation: conv ?? null });
 });
 
 api.get("/conversations/:id/messages", async c => {
