@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, type Tag } from "../api";
 import AiSettings from "../components/AiSettings";
+import QuickReplySettings from "../components/QuickReplySettings";
+import { notificationsEnabled, notificationsSupported, setNotificationsPref } from "../notifications";
 import TagChip from "../components/TagChip";
 import { TAG_LABEL } from "../format";
 
@@ -35,6 +37,8 @@ export default function Settings({
         <h2>Configuración</h2>
       </header>
       <Security email={email} onError={onError} onLogout={onLogout} />
+      <Notifications />
+      <QuickReplySettings onError={onError} />
       <AiSettings onError={onError} />
       <Tags onError={onError} />
       <Connection onError={onError} />
@@ -111,6 +115,63 @@ function Security({ email, onError, onLogout }: { email: string; onError: (e: un
           Cerrar sesión
         </button>
       </div>
+    </section>
+  );
+}
+
+function Notifications() {
+  const supported = notificationsSupported();
+  const [enabled, setEnabled] = useState(notificationsEnabled);
+  const [permission, setPermission] = useState(supported ? Notification.permission : "denied");
+
+  const turnOn = async () => {
+    const p = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+    setPermission(p);
+    if (p === "granted") {
+      setNotificationsPref(true);
+      setEnabled(true);
+      try {
+        new Notification("Notificaciones activadas", { body: "Te avisaremos de los mensajes nuevos.", icon: "/icon.svg" });
+      } catch {}
+    }
+  };
+
+  const turnOff = () => {
+    setNotificationsPref(false);
+    setEnabled(false);
+  };
+
+  return (
+    <section className="card">
+      <h3>Notificaciones</h3>
+      <p className="muted">
+        Avisos del navegador cuando llega un mensaje y no estás viendo ese chat. Se configuran en cada dispositivo. El
+        número de chats sin leer aparece siempre en el título de la pestaña.
+      </p>
+      {!supported ? (
+        <div className="alert error">
+          Este navegador no permite notificaciones del sitio (Safari en iPad no las muestra en una pestaña normal). El contador de no leídos del título sí funciona.
+        </div>
+      ) : permission === "denied" ? (
+        <div className="alert error">
+          Bloqueaste las notificaciones para este sitio. Permítelas en los ajustes del navegador y recarga la página.
+        </div>
+      ) : (
+        <div className="row">
+          {enabled ? (
+            <>
+              <span className="status-badge ok">✅ Activadas en este dispositivo</span>
+              <button className="btn" onClick={turnOff}>
+                Desactivar
+              </button>
+            </>
+          ) : (
+            <button className="btn primary" onClick={turnOn}>
+              Activar notificaciones
+            </button>
+          )}
+        </div>
+      )}
     </section>
   );
 }

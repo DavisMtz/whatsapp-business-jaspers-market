@@ -5,8 +5,9 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "./env";
 
+// inbound: llegó un mensaje del cliente (el panel puede mostrar una notificación).
 export type RealtimeEvent =
-  | { type: "message"; conversationId: number }
+  | { type: "message"; conversationId: number; inbound?: boolean }
   | { type: "conversation"; conversationId: number | null }
   | { type: "templates" };
 

@@ -81,7 +81,7 @@ function parse(r: Row) {
   return { ...r, components: JSON.parse(r.components || "[]") };
 }
 
-async function getRates(db: D1Database) {
+export async function getRates(db: D1Database) {
   const row = await db.prepare("SELECT value FROM settings WHERE key = 'template_rates'").first<{ value: string }>();
   return row ? { ...DEFAULT_RATES, ...JSON.parse(row.value) } : DEFAULT_RATES;
 }
