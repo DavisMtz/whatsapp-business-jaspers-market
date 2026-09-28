@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { api } from "../api";
+import Logo from "../components/Logo";
 
 export default function Login({ onLogin }: { onLogin: (email: string) => void }) {
   const [email, setEmail] = useState("");
@@ -24,9 +25,13 @@ export default function Login({ onLogin }: { onLogin: (email: string) => void })
   return (
     <div className="login">
       <form className="login-card" onSubmit={submit}>
-        <div className="login-logo">L</div>
-        <h1>Agente Logidma</h1>
-        <p className="muted">Inicia sesión para administrar tus chats de WhatsApp.</p>
+        <div className="login-brand">
+          <Logo size={52} />
+          <div>
+            <h1>Agente Logidma</h1>
+            <p className="muted">Tu bandeja de WhatsApp Business</p>
+          </div>
+        </div>
         <label>
           Correo
           <input
@@ -49,7 +54,7 @@ export default function Login({ onLogin }: { onLogin: (email: string) => void })
           />
         </label>
         {error && <div className="alert error">{error}</div>}
-        <button className="btn primary" disabled={busy}>
+        <button className="btn primary block" disabled={busy}>
           {busy ? "Entrando…" : "Entrar"}
         </button>
       </form>

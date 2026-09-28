@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, type Tag } from "../api";
 import AiSettings from "../components/AiSettings";
+import Icon from "../components/Icon";
 import QuickReplySettings from "../components/QuickReplySettings";
 import { notificationsEnabled, notificationsSupported, setNotificationsPref } from "../notifications";
 import TagChip from "../components/TagChip";
@@ -35,6 +36,7 @@ export default function Settings({
     <div className="page">
       <header className="page-header">
         <h2>Configuración</h2>
+        <p className="muted">Cuenta, asistente de IA, respuestas rápidas, etiquetas y conexión con WhatsApp.</p>
       </header>
       <Security email={email} onError={onError} onLogout={onLogout} />
       <Notifications />
@@ -160,7 +162,7 @@ function Notifications() {
         <div className="row">
           {enabled ? (
             <>
-              <span className="status-badge ok">✅ Activadas en este dispositivo</span>
+              <span className="status-badge ok">Activadas en este dispositivo</span>
               <button className="btn" onClick={turnOff}>
                 Desactivar
               </button>
@@ -195,7 +197,9 @@ function Connection({ onError }: { onError: (e: unknown) => void }) {
     }
   };
 
-  const ok = (v: boolean) => (v ? "✅ Configurado" : "❌ Falta");
+  const ok = (v: boolean) => (
+    <span className={`status-badge ${v ? "ok" : "bad"}`}>{v ? "Configurado" : "Falta"}</span>
+  );
 
   return (
     <section className="card">
@@ -293,7 +297,7 @@ function Tags({ onError }: { onError: (e: unknown) => void }) {
   return (
     <section className="card">
       <h3>Etiquetas</h3>
-      <p className="muted">Organiza tus contactos. Se asignan desde el botón ℹ️ de cada chat.</p>
+      <p className="muted">Organiza tus contactos. Se asignan desde el botón <Icon name="info" size={15} className="inline-icon" /> de cada chat.</p>
       {tags.length > 0 && (
         <ul className="tag-admin">
           {tags.map(t => (

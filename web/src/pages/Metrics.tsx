@@ -78,7 +78,10 @@ export default function Metrics({ onError }: { onError: (e: unknown) => void }) 
   return (
     <div className="page metrics">
       <header className="page-header">
-        <h2>Métricas</h2>
+        <div>
+          <h2>Métricas</h2>
+          <p className="muted">Volumen, tiempos de respuesta y gasto estimado.</p>
+        </div>
         <div className="segmented">
           {[7, 30, 90].map(d => (
             <button key={d} className={days === d ? "active" : ""} onClick={() => setDays(d)}>

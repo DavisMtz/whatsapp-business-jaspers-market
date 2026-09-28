@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { api, upload } from "../api";
+import Icon from "../components/Icon";
 import TemplatePreview from "../components/TemplatePreview";
 import { useRealtime } from "../realtime";
 import {
@@ -109,13 +110,17 @@ export default function Templates({ onError }: { onError: (e: unknown) => void }
   return (
     <div className="page wide">
       <header className="page-header row-between">
-        <h2>Plantillas</h2>
+        <div>
+          <h2>Plantillas</h2>
+          <p className="muted">Mensajes aprobados por Meta para escribir fuera de la ventana de 24 h.</p>
+        </div>
         <div className="row">
           <button className="btn" onClick={() => load(true)} disabled={syncing}>
+            <Icon name="refresh" size={16} className={syncing ? "spin" : undefined} />
             {syncing ? "Actualizando…" : "Actualizar"}
           </button>
           <button className="btn primary" onClick={() => setEditing("new")}>
-            Nueva plantilla
+            <Icon name="plus" size={16} /> Nueva plantilla
           </button>
         </div>
       </header>
@@ -140,7 +145,9 @@ export default function Templates({ onError }: { onError: (e: unknown) => void }
         <p className="muted">Cargando…</p>
       ) : shown.length === 0 ? (
         <div className="card empty-state">
-          <div className="empty-icon">📋</div>
+          <div className="empty-icon">
+            <Icon name="template" size={32} />
+          </div>
           <h3>{templates.length ? "Nada en este filtro" : "Aún no tienes plantillas"}</h3>
           <p className="muted">
             Las plantillas son mensajes aprobados por Meta. Son la única forma de escribirle a alguien que no te ha
@@ -464,9 +471,10 @@ function Editor({
                     type="button"
                     className="icon-btn"
                     title="Quitar botón"
+                    aria-label="Quitar botón"
                     onClick={() => set({ buttons: d.buttons.filter((_, j) => j !== i) })}
                   >
-                    ✕
+                    <Icon name="close" />
                   </button>
                 </div>
                 {b.type === "URL" && (

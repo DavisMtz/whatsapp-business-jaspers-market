@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type FormEvent } from "react";
 import { api, upload, type Conversation, type Message, type Tag } from "../api";
+import Avatar from "../components/Avatar";
 import ContactPanel from "../components/ContactPanel";
+import Icon, { type IconName } from "../components/Icon";
 import TemplateSender from "../components/TemplateSender";
 import MessageMedia from "../components/MessageMedia";
 import TagChip from "../components/TagChip";
@@ -115,16 +117,19 @@ export default function Chats({ onError }: { onError: OnError }) {
         <div className="chat-list-header">
           <h2>Chats</h2>
           <button className="btn small primary" onClick={() => { setNewChat(true); setSelectedId(null); }}>
-            + Nuevo
+            <Icon name="plus" size={16} /> Nuevo
           </button>
         </div>
         <div className="chat-list-tools">
-          <input
-            type="search"
-            placeholder="Buscar nombre o número"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-          />
+          <div className="search">
+            <Icon name="search" size={18} />
+            <input
+              type="search"
+              placeholder="Buscar nombre o número"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+            />
+          </div>
           <div className="segmented">
             <button className={tab === "open" ? "active" : ""} onClick={() => setTab("open")}>
               Abiertos
@@ -157,10 +162,10 @@ export default function Chats({ onError }: { onError: OnError }) {
           {conversations.map(c => (
             <li
               key={c.id}
-              className={`conversation ${c.id === selectedId ? "active" : ""}`}
+              className={`conversation ${c.id === selectedId ? "active" : ""} ${c.unread_count ? "unread" : ""}`}
               onClick={() => { setSelectedId(c.id); setNewChat(false); }}
             >
-              <div className="avatar">{displayName(c).replace(/^\+/, "").slice(0, 1).toUpperCase()}</div>
+              <Avatar contact={c} />
               <div className="conversation-body">
                 <div className="conversation-top">
                   <span className="conversation-name">{displayName(c)}</span>
@@ -173,7 +178,11 @@ export default function Chats({ onError }: { onError: OnError }) {
                     {c.last_direction === "out" && "Tú: "}
                     {c.last_preview}
                   </span>
-                  {c.ai_handoff_at && <span title="Pasó a una persona">🙋</span>}
+                  {c.ai_handoff_at && (
+                    <span className="handoff-icon" title="Pasó a una persona">
+                      <Icon name="person" size={14} />
+                    </span>
+                  )}
                   {c.unread_count > 0 && <span className="badge">{c.unread_count}</span>}
                 </div>
                 {c.tags.length > 0 && (
@@ -209,8 +218,11 @@ export default function Chats({ onError }: { onError: OnError }) {
           />
         ) : (
           <div className="chat-placeholder">
-            <div className="empty-icon">💬</div>
-            <p className="muted">Elige un chat o inicia uno nuevo.</p>
+            <div className="empty-icon">
+              <Icon name="chat" size={36} />
+            </div>
+            <h3>Bandeja de WhatsApp</h3>
+            <p className="muted">Elige un chat de la lista o inicia uno nuevo.</p>
           </div>
         )}
       </section>
@@ -225,17 +237,18 @@ const HANDOFF_TEXT: Record<string, string> = {
 };
 
 function StatusTicks({ status, error }: { status: string; error: string | null }) {
-  const map: Record<string, [string, string]> = {
-    accepted: ["🕓", "Enviando"],
-    sent: ["✓", "Enviado"],
-    delivered: ["✓✓", "Entregado"],
-    read: ["✓✓", "Leído"],
-    failed: ["⚠️", `Falló${error ? ": " + error : ""}`]
+  const map: Record<string, [IconName, string]> = {
+    accepted: ["clock", "Enviando"],
+    sent: ["check", "Enviado"],
+    delivered: ["checks", "Entregado"],
+    read: ["checks", "Leído"],
+    failed: ["alert", `Falló${error ? ": " + error : ""}`]
   };
-  const [icon, label] = map[status] ?? ["", status];
+  const entry = map[status];
+  if (!entry) return null;
   return (
-    <span className={`ticks ${status}`} title={label}>
-      {icon}
+    <span className={`ticks ${status}`} title={entry[1]} aria-label={entry[1]}>
+      <Icon name={entry[0]} size={17} />
     </span>
   );
 }
@@ -327,9 +340,9 @@ function ChatView({
     <div className="chat">
       <header className="chat-header">
         <button className="icon-btn back" onClick={onBack} aria-label="Volver">
-          ←
+          <Icon name="back" />
         </button>
-        <div className="avatar">{displayName(conversation).replace(/^\+/, "").slice(0, 1).toUpperCase()}</div>
+        <Avatar contact={conversation} size={40} />
         <div className="chat-title">
           {renaming ? (
             <form onSubmit={saveName} className="rename">
@@ -351,29 +364,44 @@ function ChatView({
             </>
           )}
         </div>
-        <span className={`window-pill ${remaining ? "open" : "closed"}`}>
-          {remaining ? `Ventana abierta · ${formatDuration(remaining)}` : "Ventana cerrada"}
-        </span>
-        <button className={`ai-pill ${ai.className}`} onClick={() => setShowInfo(true)} title="Asistente de IA en este chat">
-          {ai.label}
-        </button>
-        <button className="btn small" onClick={toggleArchive}>
-          {conversation.status === "archived" ? "Desarchivar" : "Archivar"}
-        </button>
-        <button
-          className={`icon-btn ${showInfo ? "active" : ""}`}
-          onClick={() => setShowInfo(v => !v)}
-          title="Notas y etiquetas"
-          aria-label="Notas y etiquetas"
-        >
-          ℹ️
-        </button>
+        <div className="chat-status">
+          <span
+            className={`window-pill ${remaining ? "open" : "closed"}`}
+            title="WhatsApp permite mensajes libres hasta 24 h después del último mensaje del cliente"
+          >
+            <Icon name="clock" size={14} />
+            {remaining ? `Ventana · ${formatDuration(remaining)}` : "Ventana cerrada"}
+          </span>
+          <button className={`ai-pill ${ai.className}`} onClick={() => setShowInfo(true)} title="Asistente de IA en este chat">
+            <Icon name={conversation.ai_handoff_at ? "person" : "bot"} size={14} />
+            {ai.label}
+          </button>
+        </div>
+        <div className="chat-actions">
+          <button
+            className="icon-btn"
+            onClick={toggleArchive}
+            title={conversation.status === "archived" ? "Desarchivar" : "Archivar"}
+            aria-label={conversation.status === "archived" ? "Desarchivar" : "Archivar"}
+          >
+            <Icon name={conversation.status === "archived" ? "unarchive" : "archive"} />
+          </button>
+          <button
+            className={`icon-btn ${showInfo ? "active" : ""}`}
+            onClick={() => setShowInfo(v => !v)}
+            title="Notas y etiquetas"
+            aria-label="Notas y etiquetas"
+          >
+            <Icon name="info" />
+          </button>
+        </div>
       </header>
 
       {conversation.ai_handoff_at && (
         <div className="handoff-banner">
+          <Icon name="person" size={18} />
           <span>
-            🙋 {HANDOFF_TEXT[conversation.ai_handoff_reason ?? ""] ?? "Este chat pasó a una persona."} La IA no responderá
+            {HANDOFF_TEXT[conversation.ai_handoff_reason ?? ""] ?? "Este chat pasó a una persona."} La IA no responderá
             aquí hasta que lo devuelvas.
           </span>
           <button className="btn small" onClick={resumeAi}>
@@ -384,14 +412,16 @@ function ChatView({
 
       <div className="chat-body">
         <div className="messages">
-          {messages.map(m => {
+          {messages.map((m, i) => {
             const day = formatDay(m.created_at);
             const showDay = day !== lastDay;
             lastDay = day;
+            // La "colita" de la burbuja solo va en el primer mensaje de cada racha.
+            const first = showDay || messages[i - 1]?.direction !== m.direction;
             return (
-              <div key={m.id}>
+              <div key={m.id} className={first ? "msg-group-start" : undefined}>
                 {showDay && <div className="day-divider">{day}</div>}
-                <div className={`bubble ${m.direction} ${m.has_media ? "has-media" : ""}`}>
+                <div className={`bubble ${m.direction} ${m.has_media ? "has-media" : ""} ${first ? "tail" : ""}`}>
                   {m.has_media ? (
                     <>
                       <MessageMedia message={m} />
@@ -401,7 +431,11 @@ function ChatView({
                     <div className="bubble-text">{m.body}</div>
                   )}
                   <div className="bubble-meta">
-                    {m.ai ? <span className="ai-badge" title="Enviado por la IA">🤖 IA</span> : null}
+                    {m.ai ? (
+                      <span className="ai-badge" title="Enviado por la IA">
+                        <Icon name="bot" size={13} /> IA
+                      </span>
+                    ) : null}
                     {formatTime(m.created_at)}
                     {m.direction === "out" && <StatusTicks status={m.status} error={m.error} />}
                   </div>
@@ -529,15 +563,24 @@ function Composer({
         />
       ) : mode === "text" ? (
         <form className="composer-row" onSubmit={sendText}>
-          <button type="button" className="icon-btn" title="Enviar plantilla" onClick={() => setMode("template")}>
-            📋
-          </button>
-          <button type="button" className="icon-btn" title="Adjuntar archivo" onClick={() => fileInput.current?.click()}>
-            📎
-          </button>
-          <button type="button" className="icon-btn" title="Sugerir respuesta con IA" onClick={suggest} disabled={suggesting}>
-            {suggesting ? "…" : "✨"}
-          </button>
+          <div className="composer-tools">
+            <button type="button" className="icon-btn" title="Enviar plantilla" aria-label="Enviar plantilla" onClick={() => setMode("template")}>
+              <Icon name="template" />
+            </button>
+            <button type="button" className="icon-btn" title="Adjuntar archivo" aria-label="Adjuntar archivo" onClick={() => fileInput.current?.click()}>
+              <Icon name="clip" />
+            </button>
+            <button
+              type="button"
+              className={`icon-btn sparkle ${suggesting ? "busy" : ""}`}
+              title="Sugerir respuesta con IA"
+              aria-label="Sugerir respuesta con IA"
+              onClick={suggest}
+              disabled={suggesting}
+            >
+              <Icon name="sparkles" />
+            </button>
+          </div>
           <input
             ref={fileInput}
             type="file"
@@ -560,7 +603,8 @@ function Composer({
             ref={textArea}
             rows={1}
             value={text}
-            placeholder="Escribe un mensaje o / para respuestas rápidas"
+            placeholder="Mensaje o / para atajos"
+            title="Escribe / para usar una respuesta rápida"
             onPaste={onPaste}
             onChange={e => {
               setText(e.target.value);
@@ -594,8 +638,8 @@ function Composer({
             }}
           />
           {text.trim() || !canRecord() ? (
-            <button className="btn primary" disabled={busy || !text.trim()}>
-              {busy ? "…" : "Enviar"}
+            <button className="send-btn" disabled={busy || !text.trim()} title="Enviar" aria-label="Enviar">
+              <Icon name="send" />
             </button>
           ) : (
             <VoiceRecorder onRecorded={setFile} onError={setError} />
@@ -666,7 +710,9 @@ function AttachmentForm({
         ) : isAudio && preview ? (
           <audio src={preview} controls />
         ) : (
-          <div className="media-doc-icon">📄</div>
+          <div className="media-doc-icon">
+            <Icon name="file" />
+          </div>
         )}
         <div className="attachment-info">
           <strong>{file.name}</strong>
@@ -752,8 +798,8 @@ function VoiceRecorder({ onRecorded, onError }: { onRecorded: (f: File) => void;
 
   if (!recording) {
     return (
-      <button type="button" className="btn primary" title="Grabar nota de voz" onClick={start}>
-        🎤
+      <button type="button" className="send-btn" title="Grabar nota de voz" aria-label="Grabar nota de voz" onClick={start}>
+        <Icon name="mic" />
       </button>
     );
   }
@@ -781,7 +827,7 @@ function NewChat({ onClose, onSent }: { onClose: () => void; onSent: (id: number
     <div className="chat">
       <header className="chat-header">
         <button className="icon-btn back" onClick={onClose} aria-label="Volver">
-          ←
+          <Icon name="back" />
         </button>
         <div className="chat-title">
           <strong>Nuevo chat</strong>
