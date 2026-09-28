@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Message } from "../api";
 import { formatSize } from "../format";
+import Icon from "./Icon";
 
 // Muestra la imagen, video, audio o documento de un mensaje (servido por /api/media con sesión).
 export default function MessageMedia({ message }: { message: Message }) {
@@ -44,8 +45,8 @@ export default function MessageMedia({ message }: { message: Message }) {
         </a>
         <span className="muted small">{formatSize(message.media_size)}</span>
       </div>
-      <a href={`${src}?download=1`} className="icon-btn" title="Descargar" download={name}>
-        ⬇️
+      <a href={`${src}?download=1`} className="icon-btn" title="Descargar" aria-label="Descargar" download={name}>
+        <Icon name="download" />
       </a>
     </div>
   );

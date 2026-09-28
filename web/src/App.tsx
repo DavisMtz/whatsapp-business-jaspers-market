@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, AuthError } from "./api";
 import Chats from "./pages/Chats";
+import Icon, { type IconName } from "./components/Icon";
+import Logo from "./components/Logo";
 import { useInboxAlerts } from "./notifications";
 import Login from "./pages/Login";
 import Metrics from "./pages/Metrics";
@@ -9,11 +11,11 @@ import Templates from "./pages/Templates";
 
 type View = "chats" | "templates" | "metrics" | "settings";
 
-const NAV: { view: View; icon: string; label: string }[] = [
-  { view: "chats", icon: "💬", label: "Chats" },
-  { view: "templates", icon: "📋", label: "Plantillas" },
-  { view: "metrics", icon: "📊", label: "Métricas" },
-  { view: "settings", icon: "⚙️", label: "Configuración" }
+const NAV: { view: View; icon: IconName; label: string }[] = [
+  { view: "chats", icon: "chat", label: "Chats" },
+  { view: "templates", icon: "template", label: "Plantillas" },
+  { view: "metrics", icon: "chart", label: "Métricas" },
+  { view: "settings", icon: "settings", label: "Configuración" }
 ];
 
 function viewFromHash(): View {
@@ -44,7 +46,12 @@ export default function App() {
     setEmail(null);
   };
 
-  if (email === undefined) return <div className="splash">Cargando…</div>;
+  if (email === undefined)
+    return (
+      <div className="splash">
+        <Logo size={56} />
+      </div>
+    );
   if (email === null) return <Login onLogin={setEmail} />;
   return <Shell email={email} view={view} onError={onError} onLogout={logout} />;
 }
@@ -66,15 +73,20 @@ function Shell({
   return (
     <div className="shell">
       <nav className="rail">
-        <div className="rail-logo" title="Agente Logidma">L</div>
+        <div className="rail-logo" title="Agente Logidma">
+          <Logo size={40} />
+        </div>
         {NAV.map(n => (
           <a
             key={n.view}
             href={`#/${n.view}`}
             className={`rail-item ${view === n.view ? "active" : ""}`}
             title={n.label}
+            aria-current={view === n.view ? "page" : undefined}
           >
-            <span className="rail-icon">{n.icon}</span>
+            <span className="rail-icon">
+              <Icon name={n.icon} size={22} />
+            </span>
             <span className="rail-label">{n.label}</span>
           </a>
         ))}

@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from "react";
 import { fill, part, type Template } from "../templates";
+import Icon, { type IconName } from "./Icon";
 
 // Formato de WhatsApp: *negritas*, _cursivas_, ~tachado~ y `monoespaciado`.
 function formatted(text: string): ReactNode[] {
@@ -19,8 +20,19 @@ function formatted(text: string): ReactNode[] {
   return out;
 }
 
-const MEDIA_ICON: Record<string, string> = { IMAGE: "🖼️ Imagen", VIDEO: "🎥 Video", DOCUMENT: "📄 Documento", LOCATION: "📍 Ubicación" };
-const BUTTON_ICON: Record<string, string> = { URL: "↗", PHONE_NUMBER: "📞", COPY_CODE: "⧉", OTP: "⧉", QUICK_REPLY: "↩" };
+const MEDIA: Record<string, [IconName, string]> = {
+  IMAGE: ["image", "Imagen"],
+  VIDEO: ["video", "Video"],
+  DOCUMENT: ["file", "Documento"],
+  LOCATION: ["pin", "Ubicación"]
+};
+const BUTTON_ICON: Record<string, IconName> = {
+  URL: "external",
+  PHONE_NUMBER: "phone",
+  COPY_CODE: "copy",
+  OTP: "copy",
+  QUICK_REPLY: "reply"
+};
 
 export default function TemplatePreview({
   template,
@@ -47,7 +59,10 @@ export default function TemplatePreview({
           (mediaUrl && header.format === "IMAGE" ? (
             <img className="tpl-media-img" src={mediaUrl} alt="" />
           ) : (
-            <div className="tpl-media">{mediaName ? `${MEDIA_ICON[header.format].split(" ")[0]} ${mediaName}` : MEDIA_ICON[header.format]}</div>
+            <div className="tpl-media">
+              <Icon name={MEDIA[header.format][0]} size={28} />
+              <span>{mediaName || MEDIA[header.format][1]}</span>
+            </div>
           ))}
         <div className="tpl-body">
           {body?.text ? (
@@ -68,7 +83,7 @@ export default function TemplatePreview({
       </div>
       {buttons.map((b, i) => (
         <div key={i} className="tpl-button">
-          <span aria-hidden>{BUTTON_ICON[b.type] ?? ""}</span> {b.text}
+          {BUTTON_ICON[b.type] && <Icon name={BUTTON_ICON[b.type]} size={16} />} {b.text}
         </div>
       ))}
     </div>

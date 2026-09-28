@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, type AiMode, type Contact, type Conversation, type Tag } from "../api";
-import { aiStatus, formatPhone, TAG_LABEL } from "../format";
+import { aiStatus, displayName, formatPhone, TAG_LABEL } from "../format";
+import Avatar from "./Avatar";
+import Icon from "./Icon";
 import TagChip from "./TagChip";
 
 // Panel lateral del chat: etiquetas y notas internas del contacto (el cliente no las ve).
@@ -95,16 +97,19 @@ export default function ContactPanel({
       <header className="contact-panel-header">
         <strong>Información del contacto</strong>
         <button className="icon-btn" onClick={onClose} aria-label="Cerrar">
-          ✕
+          <Icon name="close" />
         </button>
       </header>
       {!contact ? (
         <p className="muted">Cargando…</p>
       ) : (
         <div className="contact-panel-body">
+          <div className="contact-hero">
+            <Avatar contact={conversation} size={72} />
+            <strong>{displayName(conversation)}</strong>
+            <span className="muted small">{formatPhone(contact.wa_id)}</span>
+          </div>
           <dl className="contact-facts">
-            <dt>Número</dt>
-            <dd>{formatPhone(contact.wa_id)}</dd>
             {contact.profile_name && (
               <>
                 <dt>Nombre en WhatsApp</dt>
@@ -214,6 +219,7 @@ function AiSection({
     <section>
       <h4>Asistente de IA</h4>
       <span className={`ai-pill ${status.className}`} style={{ width: "fit-content" }}>
+        <Icon name={conversation.ai_handoff_at ? "person" : "bot"} size={14} />
         {status.label}
       </span>
       <select value={conversation.ai_mode} onChange={e => patch({ mode: e.target.value })} aria-label="IA en este chat">

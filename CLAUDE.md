@@ -62,6 +62,7 @@ Para desplegar desde una sesión hacen falta `CLOUDFLARE_API_TOKEN` y `CLOUDFLAR
 - Fechas en D1: milisegundos (epoch). Estados de salida: `accepted → sent → delivered → read` (o `failed`), sin retroceder.
 - Todo `/api/*` requiere sesión, salvo `/api/auth/login`. Las peticiones que cambian datos deben traer un `Origin` del propio sitio (CSRF).
 - Textos de la interfaz en español de México. Diseño adaptable: el usuario trabaja mucho desde iPad.
+- Diseño: colores y sombras como variables en `web/src/styles.css` (tema claro y oscuro según el sistema). Íconos SVG de `components/Icon.tsx`, no emojis. Avatares con iniciales y color por contacto (`components/Avatar.tsx`). En pantallas angostas, la barra inferior se oculta con un chat abierto.
 - Un PR por fase o cambio. Commits en español.
 
 ## Plan (roadmap)

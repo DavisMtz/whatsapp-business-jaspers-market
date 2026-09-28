@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, type AiConfig } from "../api";
+import Icon from "./Icon";
 
 type Model = { id: string; label: string; input?: number; output?: number };
 type Usage = {
@@ -145,7 +146,7 @@ export default function AiSettings({ onError }: { onError: (e: unknown) => void 
             Responder automáticamente en todos los chats
           </label>
           <span className="hint">
-            También puedes activarla o apagarla en un chat en particular desde el botón ℹ️ del chat.
+            También puedes activarla o apagarla en un chat en particular desde el botón <Icon name="info" size={15} className="inline-icon" /> del chat.
           </span>
         </fieldset>
 
@@ -297,7 +298,7 @@ function AiTester({ config, ready, onError, onDone }: { config: AiConfig; ready:
           {turns.map((t, i) => (
             <div key={i} className={`bubble ${t.role === "user" ? "in" : "out"}`}>
               <div className="bubble-text">{t.content}</div>
-              {t.handoff && <div className="bubble-meta">🙋 Pasaría el chat a una persona</div>}
+              {t.handoff && <div className="bubble-meta">Pasaría el chat a una persona</div>}
             </div>
           ))}
         </div>
