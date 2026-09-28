@@ -6,6 +6,7 @@
 //   *        /api/*            Requiere sesión
 
 import { Hono } from "hono";
+import { aiRoutes, getAiConfig, pauseAfterHuman } from "./ai";
 import { accountRoutes, authRoutes, requireSession, sameOrigin } from "./auth";
 import { contactRoutes, tagRoutes } from "./contacts";
 import type { AppEnv } from "./env";
@@ -32,6 +33,7 @@ api.route("/contacts", contactRoutes);
 api.route("/tags", tagRoutes);
 api.route("/media", mediaRoutes);
 api.route("/templates", templateRoutes);
+api.route("/ai", aiRoutes);
 
 // El navegador no manda Origin falso en un WebSocket: se exige el del propio sitio.
 api.get("/ws", async c => {
@@ -50,6 +52,7 @@ api.get("/conversations", async c => {
   const { results } = await c.env.DB.prepare(
     `SELECT cv.id, cv.wa_id, cv.status, cv.unread_count, cv.last_message_at, cv.last_preview,
             cv.last_direction, cv.last_inbound_at, ct.profile_name, ct.custom_name,
+            cv.ai_mode, cv.ai_handoff_at, cv.ai_handoff_reason, cv.ai_paused_until, cv.ai_summary, cv.ai_summary_at,
             (SELECT json_group_array(json_object('id', t.id, 'name', t.name, 'color', t.color))
              FROM contact_tags x JOIN tags t ON t.id = x.tag_id WHERE x.wa_id = cv.wa_id) AS tags
      FROM conversations cv JOIN contacts ct ON ct.wa_id = cv.wa_id
@@ -61,7 +64,8 @@ api.get("/conversations", async c => {
     .bind(status, q, like, tag)
     .all<Record<string, unknown> & { tags: string }>();
   const conversations = results.map(r => ({ ...r, tags: JSON.parse(r.tags || "[]") }));
-  return c.json({ conversations, windowMs: WINDOW_MS });
+  const ai = await getAiConfig(c.env.DB);
+  return c.json({ conversations, windowMs: WINDOW_MS, aiAutoReply: ai.autoReply });
 });
 
 api.get("/conversations/:id/messages", async c => {
@@ -69,7 +73,7 @@ api.get("/conversations/:id/messages", async c => {
   const before = Number(c.req.query("before")) || Number.MAX_SAFE_INTEGER;
   const { results } = await c.env.DB.prepare(
     `SELECT id, wamid, direction, type, body, status, error, created_at, caption,
-            media_mime, media_size, media_name, (media_key IS NOT NULL OR media_id IS NOT NULL) AS has_media
+            media_mime, media_size, media_name, ai, (media_key IS NOT NULL OR media_id IS NOT NULL) AS has_media
      FROM messages WHERE conversation_id = ? AND created_at < ?
      ORDER BY created_at DESC, id DESC LIMIT 100`
   )
@@ -135,7 +139,14 @@ api.post("/messages", async c => {
     status: "accepted",
     createdAt: Date.now()
   });
-  if (saved) c.executionCtx.waitUntil(notify(c.env, { type: "message", conversationId: saved.conversationId }));
+  if (saved) {
+    c.executionCtx.waitUntil(
+      Promise.all([
+        pauseAfterHuman(c.env, saved.conversationId),
+        notify(c.env, { type: "message", conversationId: saved.conversationId })
+      ])
+    );
+  }
   return c.json({ ok: true, conversationId: saved?.conversationId ?? null });
 });
 

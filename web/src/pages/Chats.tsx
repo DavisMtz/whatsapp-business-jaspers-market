@@ -12,6 +12,7 @@ import {
   formatPhone,
   formatSize,
   formatTime,
+  aiStatus,
   windowRemaining
 } from "../format";
 import { useRealtime, type RealtimeEvent } from "../realtime";
@@ -41,11 +42,15 @@ export default function Chats({ onError }: { onError: OnError }) {
   const [tagFilter, setTagFilter] = useState(0);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [chatEvent, setChatEvent] = useState<{ id: number | null; n: number }>({ id: null, n: 0 });
+  const [aiAutoReply, setAiAutoReply] = useState(false);
 
   const load = useCallback(() => {
     const qs = new URLSearchParams({ status: tab, q: query, tag: String(tagFilter) });
-    api<{ conversations: Conversation[] }>(`/conversations?${qs}`)
-      .then(r => setConversations(r.conversations))
+    api<{ conversations: Conversation[]; aiAutoReply: boolean }>(`/conversations?${qs}`)
+      .then(r => {
+        setConversations(r.conversations);
+        setAiAutoReply(r.aiAutoReply);
+      })
       .catch(onError);
   }, [tab, query, tagFilter, onError]);
 
@@ -139,6 +144,7 @@ export default function Chats({ onError }: { onError: OnError }) {
                     {c.last_direction === "out" && "Tú: "}
                     {c.last_preview}
                   </span>
+                  {c.ai_handoff_at && <span title="Pasó a una persona">🙋</span>}
                   {c.unread_count > 0 && <span className="badge">{c.unread_count}</span>}
                 </div>
                 {c.tags.length > 0 && (
@@ -170,6 +176,7 @@ export default function Chats({ onError }: { onError: OnError }) {
             onError={onError}
             live={live}
             event={chatEvent}
+            aiAutoReply={aiAutoReply}
           />
         ) : (
           <div className="chat-placeholder">
@@ -181,6 +188,12 @@ export default function Chats({ onError }: { onError: OnError }) {
     </div>
   );
 }
+
+const HANDOFF_TEXT: Record<string, string> = {
+  cliente: "El cliente pidió hablar con una persona.",
+  ia: "La IA no supo resolverlo y pasó el chat a una persona.",
+  limite: "Se alcanzó el límite de respuestas automáticas en este chat."
+};
 
 function StatusTicks({ status, error }: { status: string; error: string | null }) {
   const map: Record<string, [string, string]> = {
@@ -205,7 +218,8 @@ function ChatView({
   onTagsChanged,
   onError,
   live,
-  event
+  event,
+  aiAutoReply
 }: {
   conversation: Conversation;
   onBack: () => void;
@@ -214,6 +228,7 @@ function ChatView({
   onError: OnError;
   live: boolean;
   event: { id: number | null; n: number };
+  aiAutoReply: boolean;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [showInfo, setShowInfo] = useState(false);
@@ -252,6 +267,12 @@ function ChatView({
   }, [messages]);
 
   const remaining = windowRemaining(conversation.last_inbound_at);
+  const ai = aiStatus(conversation, aiAutoReply);
+
+  const resumeAi = async () => {
+    await api(`/ai/conversations/${conversation.id}`, { method: "PATCH", body: { resume: true } }).catch(onError);
+    onChanged();
+  };
 
   const toggleArchive = async () => {
     const status = conversation.status === "archived" ? "open" : "archived";
@@ -299,6 +320,9 @@ function ChatView({
         <span className={`window-pill ${remaining ? "open" : "closed"}`}>
           {remaining ? `Ventana abierta · ${formatDuration(remaining)}` : "Ventana cerrada"}
         </span>
+        <button className={`ai-pill ${ai.className}`} onClick={() => setShowInfo(true)} title="Asistente de IA en este chat">
+          {ai.label}
+        </button>
         <button className="btn small" onClick={toggleArchive}>
           {conversation.status === "archived" ? "Desarchivar" : "Archivar"}
         </button>
@@ -311,6 +335,18 @@ function ChatView({
           ℹ️
         </button>
       </header>
+
+      {conversation.ai_handoff_at && (
+        <div className="handoff-banner">
+          <span>
+            🙋 {HANDOFF_TEXT[conversation.ai_handoff_reason ?? ""] ?? "Este chat pasó a una persona."} La IA no responderá
+            aquí hasta que lo devuelvas.
+          </span>
+          <button className="btn small" onClick={resumeAi}>
+            Devolver a la IA
+          </button>
+        </div>
+      )}
 
       <div className="chat-body">
         <div className="messages">
@@ -331,6 +367,7 @@ function ChatView({
                     <div className="bubble-text">{m.body}</div>
                   )}
                   <div className="bubble-meta">
+                    {m.ai ? <span className="ai-badge" title="Enviado por la IA">🤖 IA</span> : null}
                     {formatTime(m.created_at)}
                     {m.direction === "out" && <StatusTicks status={m.status} error={m.error} />}
                   </div>
@@ -343,6 +380,8 @@ function ChatView({
         </div>
         {showInfo && (
           <ContactPanel
+            conversation={conversation}
+            aiAutoReply={aiAutoReply}
             waId={conversation.wa_id}
             onClose={() => setShowInfo(false)}
             onChanged={onTagsChanged}
@@ -351,18 +390,42 @@ function ChatView({
         )}
       </div>
 
-      <Composer to={conversation.wa_id} windowOpen={!!remaining} onSent={() => { load(); onChanged(); }} />
+      <Composer to={conversation.wa_id} conversationId={conversation.id} windowOpen={!!remaining} onSent={() => { load(); onChanged(); }} />
     </div>
   );
 }
 
-function Composer({ to, windowOpen, onSent }: { to: string; windowOpen: boolean; onSent: () => void }) {
+function Composer({
+  to,
+  conversationId,
+  windowOpen,
+  onSent
+}: {
+  to: string;
+  conversationId: number;
+  windowOpen: boolean;
+  onSent: () => void;
+}) {
   const [mode, setMode] = useState<"text" | "template">(windowOpen ? "text" : "template");
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [suggesting, setSuggesting] = useState(false);
+
+  const suggest = async () => {
+    setSuggesting(true);
+    setError("");
+    try {
+      const r = await api<{ text: string }>(`/ai/conversations/${conversationId}/suggest`, { body: {} });
+      setText(r.text);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo sugerir una respuesta");
+    } finally {
+      setSuggesting(false);
+    }
+  };
 
   const onPaste = (e: ClipboardEvent) => {
     const pasted = e.clipboardData.files[0];
@@ -416,6 +479,9 @@ function Composer({ to, windowOpen, onSent }: { to: string; windowOpen: boolean;
           </button>
           <button type="button" className="icon-btn" title="Adjuntar archivo" onClick={() => fileInput.current?.click()}>
             📎
+          </button>
+          <button type="button" className="icon-btn" title="Sugerir respuesta con IA" onClick={suggest} disabled={suggesting}>
+            {suggesting ? "…" : "✨"}
           </button>
           <input
             ref={fileInput}

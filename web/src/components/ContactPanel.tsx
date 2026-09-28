@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { api, type Contact, type Tag } from "../api";
-import { formatPhone, TAG_LABEL } from "../format";
+import { api, type AiMode, type Contact, type Conversation, type Tag } from "../api";
+import { aiStatus, formatPhone, TAG_LABEL } from "../format";
 import TagChip from "./TagChip";
 
 // Panel lateral del chat: etiquetas y notas internas del contacto (el cliente no las ve).
 export default function ContactPanel({
+  conversation,
+  aiAutoReply,
   waId,
   onClose,
   onChanged,
   onError
 }: {
+  conversation: Conversation;
+  aiAutoReply: boolean;
   waId: string;
   onClose: () => void;
   onChanged: () => void;
@@ -111,6 +115,8 @@ export default function ContactPanel({
             <dd>{new Date(contact.created_at).toLocaleDateString("es-MX", { dateStyle: "long" })}</dd>
           </dl>
 
+          <AiSection conversation={conversation} aiAutoReply={aiAutoReply} onChanged={onChanged} onError={onError} />
+
           <section>
             <h4>Etiquetas</h4>
             <div className="tag-list">
@@ -156,5 +162,90 @@ export default function ContactPanel({
         </div>
       )}
     </aside>
+  );
+}
+
+const MODE_LABEL: Record<AiMode, string> = {
+  auto: "Según la configuración global",
+  on: "Activa en este chat",
+  off: "Apagada en este chat"
+};
+
+// Asistente de IA en este chat: modo, traspaso a humano y resumen.
+function AiSection({
+  conversation,
+  aiAutoReply,
+  onChanged,
+  onError
+}: {
+  conversation: Conversation;
+  aiAutoReply: boolean;
+  onChanged: () => void;
+  onError: (e: unknown) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const status = aiStatus(conversation, aiAutoReply);
+
+  const patch = async (body: Record<string, unknown>) => {
+    try {
+      await api(`/ai/conversations/${conversation.id}`, { method: "PATCH", body });
+      onChanged();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  const summarize = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/ai/conversations/${conversation.id}/summary`, { body: {} });
+      onChanged();
+    } catch (err) {
+      onError(err);
+      setError(err instanceof Error ? err.message : "No se pudo resumir");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section>
+      <h4>Asistente de IA</h4>
+      <span className={`ai-pill ${status.className}`} style={{ width: "fit-content" }}>
+        {status.label}
+      </span>
+      <select value={conversation.ai_mode} onChange={e => patch({ mode: e.target.value })} aria-label="IA en este chat">
+        {(Object.keys(MODE_LABEL) as AiMode[]).map(m => (
+          <option key={m} value={m}>
+            {MODE_LABEL[m]}
+            {m === "auto" ? (aiAutoReply ? " (activa)" : " (apagada)") : ""}
+          </option>
+        ))}
+      </select>
+      {(conversation.ai_handoff_at || (conversation.ai_paused_until ?? 0) > Date.now()) && (
+        <button className="btn small" onClick={() => patch({ resume: true })}>
+          Devolver el chat a la IA
+        </button>
+      )}
+      <div className="row-between">
+        <strong className="small">Resumen</strong>
+        <button className="btn small" onClick={summarize} disabled={busy}>
+          {busy ? "Resumiendo…" : conversation.ai_summary ? "Actualizar" : "Generar resumen"}
+        </button>
+      </div>
+      {conversation.ai_summary && (
+        <>
+          <div className="ai-summary">{conversation.ai_summary}</div>
+          {conversation.ai_summary_at && (
+            <span className="muted small">
+              {new Date(conversation.ai_summary_at).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" })}
+            </span>
+          )}
+        </>
+      )}
+      {error && <div className="alert error">{error}</div>}
+    </section>
   );
 }

@@ -16,6 +16,8 @@ export type NewMessage = {
   createdAt: number;
   caption?: string | null;
   media?: { id: string | null; key?: string | null; mime: string; size?: number | null; name?: string | null } | null;
+  // Escrito y enviado por la IA.
+  ai?: boolean;
 };
 
 export type Saved = { conversationId: number; messageId: number };
@@ -60,8 +62,8 @@ export async function saveMessage(db: D1Database, m: NewMessage): Promise<Saved 
   const row = await db
     .prepare(
       `INSERT INTO messages (conversation_id, wamid, direction, type, body, payload, status, created_at,
-                             caption, media_id, media_key, media_mime, media_size, media_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             caption, media_id, media_key, media_mime, media_size, media_name, ai)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        RETURNING id`
     )
     .bind(
@@ -78,7 +80,8 @@ export async function saveMessage(db: D1Database, m: NewMessage): Promise<Saved 
       m.media?.key ?? null,
       m.media?.mime ?? null,
       m.media?.size ?? null,
-      m.media?.name ?? null
+      m.media?.name ?? null,
+      m.ai ? 1 : 0
     )
     .first<{ id: number }>();
   return { conversationId, messageId: row!.id };

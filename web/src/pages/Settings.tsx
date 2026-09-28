@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, type Tag } from "../api";
+import AiSettings from "../components/AiSettings";
 import TagChip from "../components/TagChip";
 import { TAG_LABEL } from "../format";
 
@@ -34,6 +35,7 @@ export default function Settings({
         <h2>Configuración</h2>
       </header>
       <Security email={email} onError={onError} onLogout={onLogout} />
+      <AiSettings onError={onError} />
       <Tags onError={onError} />
       <Connection onError={onError} />
     </div>

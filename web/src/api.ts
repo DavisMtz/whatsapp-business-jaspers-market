@@ -25,7 +25,15 @@ export type Conversation = {
   profile_name: string | null;
   custom_name: string | null;
   tags: Tag[];
+  ai_mode: AiMode;
+  ai_handoff_at: number | null;
+  ai_handoff_reason: "cliente" | "ia" | "limite" | null;
+  ai_paused_until: number | null;
+  ai_summary: string | null;
+  ai_summary_at: number | null;
 };
+
+export type AiMode = "auto" | "on" | "off";
 
 export type Tag = { id: number; name: string; color: string };
 
@@ -51,6 +59,7 @@ export type Message = {
   media_size: number | null;
   media_name: string | null;
   has_media: number;
+  ai: number;
 };
 
 // Envía un formulario multipart (archivos).
@@ -62,3 +71,18 @@ export async function upload<T = any>(path: string, form: FormData): Promise<T> 
   if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
   return data as T;
 }
+
+export type AiConfig = {
+  provider: "workers-ai" | "claude";
+  workersModel: string;
+  claudeModel: string;
+  autoReply: boolean;
+  businessName: string;
+  instructions: string;
+  knowledge: string;
+  schedule: { mode: "always" | "inside" | "outside"; days: number[]; start: string; end: string; timezone: string };
+  maxPerChat: number;
+  humanPauseMinutes: number;
+  handoffKeywords: string[];
+  handoffMessage: string;
+};

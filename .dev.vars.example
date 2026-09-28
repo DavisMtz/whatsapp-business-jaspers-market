@@ -5,3 +5,5 @@ APP_SECRET=app_secret_de_agente_logidma
 VERIFY_TOKEN=frase_para_verificar_el_webhook
 ADMIN_EMAIL=tu-correo@ejemplo.com
 DASHBOARD_PASSWORD=contraseña-inicial
+# Opcional: solo si eliges Claude como proveedor de IA.
+ANTHROPIC_API_KEY=

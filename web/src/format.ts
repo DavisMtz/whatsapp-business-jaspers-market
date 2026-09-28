@@ -78,3 +78,11 @@ export const TAG_LABEL: Record<string, string> = {
   yellow: "Amarillo",
   gray: "Gris"
 };
+
+// Estado de la IA en un chat, para la etiqueta del encabezado.
+export function aiStatus(c: Conversation, globalAuto: boolean): { label: string; className: string } {
+  if (c.ai_handoff_at) return { label: "🙋 Con una persona", className: "handoff" };
+  if (c.ai_mode === "off" || (c.ai_mode === "auto" && !globalAuto)) return { label: "🤖 IA apagada", className: "" };
+  if (c.ai_paused_until && c.ai_paused_until > Date.now()) return { label: "🤖 IA en pausa", className: "" };
+  return { label: "🤖 IA activa", className: "on" };
+}

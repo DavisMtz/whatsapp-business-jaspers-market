@@ -3,6 +3,7 @@
 import { Hono } from "hono";
 import type { AppEnv, Env } from "./env";
 import { downloadMedia, graphSend, uploadMedia } from "./graph";
+import { pauseAfterHuman } from "./ai";
 import { notify } from "./realtime";
 import { saveMessage } from "./store";
 
@@ -192,6 +193,13 @@ mediaRoutes.post("/send", async c => {
     createdAt: Date.now(),
     media: { id: uploaded.id, key, mime, size: file.size, name }
   });
-  if (saved) c.executionCtx.waitUntil(notify(c.env, { type: "message", conversationId: saved.conversationId }));
+  if (saved) {
+    c.executionCtx.waitUntil(
+      Promise.all([
+        pauseAfterHuman(c.env, saved.conversationId),
+        notify(c.env, { type: "message", conversationId: saved.conversationId })
+      ])
+    );
+  }
   return c.json({ ok: true, conversationId: saved?.conversationId ?? null });
 });
