@@ -20,10 +20,16 @@ export const WORKERS_AI_MODELS = [
 
 // Precio en US$ por millón de tokens (entrada / salida), para estimar el gasto.
 export const CLAUDE_MODELS = [
-  { id: "claude-opus-5", label: "Claude Opus 5 (recomendado)", input: 5, output: 25 },
-  { id: "claude-sonnet-5", label: "Claude Sonnet 5", input: 2, output: 10 },
-  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", input: 1, output: 5 }
+  { id: "claude-opus-5-5", label: "Claude Opus 5.5 (recomendado)", input: 4, output: 20 },
+  { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", input: 2, output: 10 },
+  // Precio de Haiku 5.5 para prompts de hasta 100K tokens; el bot manda unos 3K.
+  { id: "claude-haiku-5-5", label: "Claude Haiku 5.5", input: 0.1, output: 0.5 },
+  { id: "claude-fable-5-1", label: "Claude Fable 5.1 (el más capaz)", input: 10, output: 50 },
+  { id: "claude-opus-5", label: "Claude Opus 5 (anterior)", input: 5, output: 25 },
+  { id: "claude-sonnet-5", label: "Claude Sonnet 5 (anterior)", input: 2, output: 10 },
+  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5 (anterior)", input: 1, output: 5 }
 ];
+const FALLBACK_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1", "claude-opus-5"];
 
 const HANDOFF_MARK = "[[HUMANO]]";
 const HISTORY_LIMIT = 30;
@@ -271,7 +277,7 @@ async function complete(env: Env, cfg: AiConfig, p: Prompt): Promise<Completion>
 
 async function completeClaude(env: Env, model: string, p: Prompt): Promise<Completion> {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 0, timeout: 20_000 });
-  const opus5 = model === "claude-opus-5";
+  const fallback = FALLBACK_MODELS.includes(model);
   const res = await client.beta.messages.create({
     model,
     max_tokens: p.maxTokens,
@@ -283,8 +289,8 @@ async function completeClaude(env: Env, model: string, p: Prompt): Promise<Compl
     messages: p.messages,
     // Mensajes cortos de WhatsApp: poco razonamiento. Haiku 4.5 no admite "effort".
     ...(model !== "claude-haiku-4-5" ? { output_config: { effort: "low" as const } } : {}),
-    // Si Opus 5 declina por sus filtros de seguridad, la API reintenta con otro modelo.
-    ...(opus5 ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {})
+    // Si el modelo declina por sus filtros de seguridad, la API reintenta con otro modelo (no todos lo admiten).
+    ...(fallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {})
   });
   if (res.stop_reason === "refusal") return { error: "El modelo se negó a responder" };
   const text = res.content
